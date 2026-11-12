@@ -3,10 +3,17 @@ const qaSleep=ms=>new Promise(r=>setTimeout(r,ms)),qaReport=text=>parent.documen
 async function qaUntil(fn,ms=12000){const end=performance.now()+ms;while(!fn()){if(performance.now()>end)throw Error('Timeout: '+fn.toString());await qaSleep(25);}}
 const qaCheck=(v,text)=>{if(!v)throw Error(text);qaReport('PASS '+text);};
 window.runRecordingAudit=async()=>{try{
+ // Match Start take: prime the soundtrack from this explicit user gesture.
+ await dance.referenceAudio.prime();
  const source=await fetch('/__tone.mp4').then(r=>r.blob()),dt=new DataTransfer();dt.items.add(new File([source],'retry-audit.mp4',{type:'video/mp4',lastModified:1}));file.files=dt.files;file.dispatchEvent(new Event('change'));await qaUntil(()=>video.readyState>=3);pausePlayback();
  const rawCanvas=document.createElement('canvas');rawCanvas.width=720;rawCanvas.height=1280;const ctx=rawCanvas.getContext('2d');let frame=0;const paint=()=>{ctx.fillStyle=frame%2?'#8762c0':'#9672d0';ctx.fillRect(0,0,720,1280);ctx.fillStyle='#fff';ctx.font='60px sans-serif';ctx.fillText('CAMERA '+frame++,60,640);requestAnimationFrame(paint);};paint();
  let cameras=0;navigator.mediaDevices.getUserMedia=async()=>{cameras++;return rawCanvas.captureStream(30);};SlowMoCamera.orientation=()=> 'portrait';
- setSpeed(.65);loopA=2;loopB=4.6;loopOn=true;renderLoop();$('prepareSeconds').value='0';$('recordAudio').value='reference';dance.setRecordReference('split');dance.openPractice();await dance.enableCamera();$('practiceDialog').close();
+ setSpeed(.65);loopA=2;loopB=4.6;loopOn=true;renderLoop();$('prepareSeconds').value='0';$('recordAudio').value='reference';dance.setRecordReference('split');dance.openPractice();await dance.enableCamera();
+ const sensor=$('cameraSource'),sensorBox=sensor.getBoundingClientRect();
+ qaCheck(sensor.closest('#practiceDialog')&&!sensor.closest('[inert]'),'Camera source is inside active framing, outside inert viewer');
+ qaCheck(getComputedStyle(sensor).opacity==='1'&&sensorBox.width>100&&sensorBox.height>100,'Camera source has a visible full-size framing surface');
+ qaCheck(dance.cameraFrames.canvas.parentElement===$('cameraPreviewHost')&&$('cameraPreview').paused,'Framing displays normalized canvas without a second video decoder');
+ dance.mountCameraSource(false);$('practiceDialog').close();
  const attempts=[];for(let i=0;i<4;i++){
   if(!i)await dance.startMemory(true);else{const pending=dance.retry();if(i===1)dance.retry();await pending;}
   await qaUntil(()=>dance.session?.playing&&dance.isRecording);const active=dance.session,encoder=dance.recorder;
