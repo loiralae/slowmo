@@ -98,3 +98,13 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 .dialog-actions{gap:8px;margin-top:16px}.camera-options{row-gap:12px;column-gap:16px}
 .workspace .mode-dialog.camera-framing{padding:18px}.camera-framing .dialog-heading h2{display:none}.camera-framing>.dialog-heading{margin:0}
 @media(max-width:480px){.workspace .mode-dialog{padding:18px;scroll-padding:18px}.dialog-heading{gap:12px;margin-bottom:16px}#exportOptions>label:not(.check-option){grid-template-columns:1fr;gap:6px}#exportOptions{gap:16px}}
+
+/* Keep the physical camera video in the active framing surface, outside the
+   inert viewer, and show normalized frames without another video decoder. */
+#cameraPreviewHost{position:relative;min-height:120px;height:220px;overflow:hidden;background:#000;border-radius:12px;margin-top:12px}
+.camera-framing #cameraPreviewHost{height:100%;min-height:0;margin:0}
+#cameraPreviewHost #cameraSource,#cameraPreviewHost .camera-framing-picture{position:absolute;inset:0;width:100%;height:100%;opacity:1;object-fit:contain;pointer-events:none}
+#cameraPreviewHost .camera-framing-picture{z-index:1}
+#cameraPreviewHost.mirrored{transform:scaleX(-1)}
+#cameraSourceHome{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
+#cameraSourceHome #cameraSource{opacity:1}
