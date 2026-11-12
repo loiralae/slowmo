@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+.DS_Store
+__pycache__/
+dist/__*
+*.mp4
+*.mov
+*.webm
+*.m4v
+*.tar.gz
+*.zip
