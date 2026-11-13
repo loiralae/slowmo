@@ -19,12 +19,21 @@ function crop(sourceWidth,sourceHeight,targetWidth,targetHeight){
  if(sourceRatio>ratio){const width=sourceHeight*ratio;return {x:(sourceWidth-width)/2,y:0,width,height:sourceHeight};}
  const height=sourceWidth/ratio;return {x:0,y:(sourceHeight-height)/2,width:sourceWidth,height};
 }
-function pictureReady(video,timeout=4000,expected=null){return new Promise((resolve,reject)=>{
- let timer,frame=0,previous=video.currentTime,count=0;const win=video.ownerDocument.defaultView;
- const finish=(error)=>{win.clearTimeout(timer);win.cancelAnimationFrame(frame);error?reject(error):resolve({width:video.videoWidth,height:video.videoHeight});};
- const check=()=>{if(video.readyState>=2&&video.videoWidth>0&&video.videoHeight>0&&(!expected||(video.videoWidth===expected.width&&video.videoHeight===expected.height))){if(video.currentTime!==previous){count++;previous=video.currentTime;}if(count>=2){finish();return;}}frame=win.requestAnimationFrame(check);};
+function pictureReady(video,timeout=4000,expected=null,signal=null){return new Promise((resolve,reject)=>{
+ let timer,frame=0,previous=video.currentTime,count=0,done=false,width=video.videoWidth,height=video.videoHeight;const win=video.ownerDocument.defaultView;
+ const finish=error=>{if(done)return;done=true;win.clearTimeout(timer);win.cancelAnimationFrame(frame);signal?.removeEventListener('abort',abort);error?reject(error):resolve({width:video.videoWidth,height:video.videoHeight});};
+ const abort=()=>finish(Object.assign(new Error('Camera preparation cancelled.'),{name:'AbortError'}));
+ const check=()=>{if(done)return;if(video.videoWidth!==width||video.videoHeight!==height){width=video.videoWidth;height=video.videoHeight;count=0;}
+  if(video.readyState>=2&&width>0&&height>0&&(!expected||(width===expected.width&&height===expected.height))){if(video.currentTime!==previous){count++;previous=video.currentTime;}if(count>=2){finish();return;}}frame=win.requestAnimationFrame(check);};
+ if(signal?.aborted){abort();return;}signal?.addEventListener('abort',abort,{once:true});
  timer=win.setTimeout(()=>finish(new Error('The camera has not produced a picture. Enable the camera again.')),timeout);check();
 });}
+function nativeFrame(video){
+ if(video.readyState<2||!(video.videoWidth>0&&video.videoHeight>0))throw new Error('The camera has not produced a picture. Enable it again.');
+ // Read painted dimensions after readiness, not transient sensor settings
+ // immediately after getUserMedia. WebKit can swap them on its first frame.
+ return {path:'native',orientation:video.videoHeight>video.videoWidth?'portrait':'landscape',width:video.videoWidth,height:video.videoHeight};
+}
 class CameraFrames{
  constructor(source,direction){
   this.source=source;this.win=source.ownerDocument.defaultView;this.canvas=source.ownerDocument.createElement('canvas');this.context=this.canvas.getContext('2d',{alpha:false});
@@ -71,5 +80,5 @@ class CameraFrames{
  }
  stop(){this.stopped=true;clearTimeout(this.timer);for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
 }
-return {orientation,size,sensorConstraints,crop,pictureReady,CameraFrames};
+return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,CameraFrames};
 });
