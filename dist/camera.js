@@ -30,22 +30,33 @@ class CameraFrames{
   this.source=source;this.win=source.ownerDocument.defaultView;this.canvas=source.ownerDocument.createElement('canvas');this.context=this.canvas.getContext('2d',{alpha:false});
   if(!this.context||!this.canvas.captureStream)throw new Error('This browser cannot record orientation-correct camera frames. Try current Safari or Chrome.');
   this.stopped=false;this.frame=0;this.videoFrame=0;this.last=-Infinity;this.lastMediaTime=null;this.framesDrawn=0;this.waiters=new Set();this.locked=false;this.setOrientation(direction);this.draw();this.stream=this.canvas.captureStream(30);
-  // Prefer decoded-frame callbacks. Keep a paced fallback for WebKit versions
-  // that throttle callbacks on the tiny, transparent sensor video.
-  const paint=now=>{if(this.stopped)return;const time=source.currentTime;if(now-this.last>=1000/30-1){this.last=now;this.lastMediaTime=time;this.draw();}};
-  const fallback=now=>{if(this.stopped)return;if(!this.useVideoFrames||now-this.lastDecodedAt>250)paint(now);this.frame=this.win.requestAnimationFrame(fallback);};
-  this.useVideoFrames=typeof source.requestVideoFrameCallback==='function';this.lastDecodedAt=-Infinity;
+  // Callbacks can continue with an unchanged mediaTime in WebKit. Watch
+  // successful frame copies, not callback arrivals, so that cannot starve
+  // the fallback. Use one clock for RAF, video callbacks and the timer.
+  this.clock=()=>this.win.performance?.now?.()??Date.now();this.lastPaintAt=-Infinity;this.lastDecodedAt=-Infinity;this.timer=0;
+  const paint=()=>{if(this.stopped)return;const now=this.clock();if(now-this.lastPaintAt<1000/30-1)return;
+   if(this.draw()){this.lastPaintAt=now;this.lastMediaTime=source.currentTime;}
+  };
+  const fallback=()=>{if(this.stopped)return;try{if(!this.useVideoFrames||this.clock()-this.lastDecodedAt>250)paint();}finally{if(!this.stopped)this.frame=this.win.requestAnimationFrame(fallback);}};
+  this.useVideoFrames=typeof source.requestVideoFrameCallback==='function';
   if(this.useVideoFrames){
-   const tick=(now,meta)=>{if(this.stopped)return;this.lastDecodedAt=now;const time=meta?.mediaTime??source.currentTime;
-    if(now-this.last>=1000/30-1&&time!==this.lastMediaTime){this.last=now;this.lastMediaTime=time;this.draw();}
-    this.videoFrame=source.requestVideoFrameCallback(tick);
+   const tick=(now,meta)=>{if(this.stopped)return;try{const time=meta?.mediaTime??source.currentTime;
+    if(time!==this.lastMediaTime&&this.clock()-this.lastPaintAt>=1000/30-1&&this.draw()){
+     this.lastMediaTime=time;this.lastPaintAt=this.clock();this.lastDecodedAt=this.lastPaintAt;
+    }
+   }finally{if(!this.stopped)this.videoFrame=source.requestVideoFrameCallback(tick);}
    };this.videoFrame=source.requestVideoFrameCallback(tick);
   }
   this.frame=this.win.requestAnimationFrame(fallback);
+  // A bounded, low-frequency watchdog also covers suppressed rendering
+  // callbacks. It does not run another camera or change the recording clock.
+  const watchdog=()=>{if(this.stopped)return;try{if(this.clock()-this.lastPaintAt>250)paint();}finally{if(!this.stopped)this.timer=setTimeout(watchdog,100);}};
+  this.timer=setTimeout(watchdog,100);
  }
  setOrientation(direction){if(this.locked||this.orientation===direction)return;this.orientation=direction;const dimensions=size(direction);this.canvas.width=dimensions.width;this.canvas.height=dimensions.height;this.draw();}
- draw(){const v=this.source;if(!this.context||v.readyState<2||!v.videoWidth||!v.videoHeight)return;const c=crop(v.videoWidth,v.videoHeight,this.canvas.width,this.canvas.height);this.context.drawImage(v,c.x,c.y,c.width,c.height,0,0,this.canvas.width,this.canvas.height);this.framesDrawn++;
+ draw(){const v=this.source;if(!this.context||v.readyState<2||!v.videoWidth||!v.videoHeight)return;const c=crop(v.videoWidth,v.videoHeight,this.canvas.width,this.canvas.height);try{this.context.drawImage(v,c.x,c.y,c.width,c.height,0,0,this.canvas.width,this.canvas.height);}catch(error){this.lastDrawError=error;return false;}this.lastDrawError=null;this.framesDrawn++;
   for(const waiter of this.waiters)if(this.framesDrawn>=waiter.target){clearTimeout(waiter.timer);this.waiters.delete(waiter);waiter.resolve();}
+  return true;
  }
  freshFrames(count=2,timeout=4000){
   if(this.stopped)return Promise.reject(new Error('The camera stopped before recording was ready.'));
@@ -58,7 +69,7 @@ class CameraFrames{
   if(this.stopped)throw new Error('The camera stopped before the take began.');
   return {orientation:this.orientation,...size(this.orientation)};
  }
- stop(){this.stopped=true;for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
+ stop(){this.stopped=true;clearTimeout(this.timer);for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
 }
 return {orientation,size,sensorConstraints,crop,pictureReady,CameraFrames};
 });
