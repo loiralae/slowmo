@@ -107,9 +107,6 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 #cameraSourceHome{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
 #cameraSourceHome #cameraSource{opacity:1}
 
-/* One native camera view, sized to the saved take's field of view. Mirroring
-   belongs only to the video, so moving between surfaces cannot flip it twice. */
-#cameraPreviewHost,#recordMonitor{container-type:size}
-@supports(width:1cqw){
- #cameraPreviewHost #cameraSource,#recordMonitor #cameraSource{inset:0;margin:auto;width:min(100cqw,calc(100cqh * var(--camera-ratio,0.5625)));height:min(100cqh,calc(100cqw / var(--camera-ratio,0.5625)));object-fit:cover}
-}
+/* The native camera occupies its whole pane. object-fit:contain performs the
+   single aspect-ratio fit, exactly as it does for the reference video. Avoid
+   another sized rectangle or container-query units inside the camera pane. */
