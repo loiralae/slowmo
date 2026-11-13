@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v22 (November 13, 2026). Native camera recording and default selfie-mirroring improvements are covered by automated and synthetic-browser checks; physical iPad verification remains required.
+Source synchronized with deployed SlowMo v23 (November 12, 2026). Full-size native camera panes and recording behavior are covered by automated and synthetic-browser checks; physical iPad verification remains required.
 
 ## What it does
 
