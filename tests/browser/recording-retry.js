@@ -2,6 +2,34 @@
 const qaSleep=ms=>new Promise(r=>setTimeout(r,ms)),qaReport=text=>parent.document.getElementById('report').textContent+=text+'\n';
 async function qaUntil(fn,ms=12000){const end=performance.now()+ms;while(!fn()){if(performance.now()>end)throw Error('Timeout: '+fn.toString());await qaSleep(25);}}
 const qaCheck=(v,text)=>{if(!v)throw Error(text);qaReport('PASS '+text);};
+function qaCameraFills(host,label){
+ const camera=$('cameraSource'),picture=camera.getBoundingClientRect(),pane=$(host).getBoundingClientRect();
+ qaCheck(Math.abs(picture.width-pane.width)<1&&Math.abs(picture.height-pane.height)<1,label+': camera element fills its pane');
+ qaCheck(Math.abs(picture.x-pane.x)<1&&Math.abs(picture.y-pane.y)<1,label+': camera is centered without an extra inset');
+ qaCheck(getComputedStyle(camera).objectFit==='contain',label+': aspect ratio is preserved with one native fit');
+}
+async function qaCameraLayout(){
+ const frame=parent.document.getElementById('app');let checks=0;
+ for(const [width,height] of [[756,1126],[1126,756]]){
+  frame.style.width=width+'px';frame.style.height=height+'px';await qaSleep(100);
+  for(const ratio of ['0.5625','1','1.777777778']){$('cameraSource').style.setProperty('--camera-ratio',ratio);qaCameraFills('cameraPreviewHost',width+'x'+height+' setup, cached ratio '+ratio);checks++;}
+ }
+ frame.style.width='756px';frame.style.height='1126px';await qaSleep(100);
+ await dance.startMemory(true);await qaUntil(()=>dance.session?.playing&&dance.isRecording);
+ const recorder=dance.recorder,session=dance.session,stream=dance.stream;
+ for(const [width,height] of [[756,1126],[1126,756]]){
+  frame.style.width=width+'px';frame.style.height=height+'px';await qaSleep(100);
+  for(const mode of ['split','hidden'])for(const safe of [false,true]){
+   document.documentElement.style.setProperty('--safe-top',safe?'32px':'0px');document.documentElement.style.setProperty('--safe-bottom',safe?'20px':'0px');dance.setRecordReference(mode);
+   for(const ratio of ['0.5625','1','1.777777778']){$('cameraSource').style.setProperty('--camera-ratio',ratio);qaCameraFills('recordMonitor',width+'x'+height+' '+mode+', safe area '+safe+', cached ratio '+ratio);checks++;
+    if(mode==='split')qaCheck(Math.abs($('recordMonitor').getBoundingClientRect().width-$('referenceStage').getBoundingClientRect().width)<1,'Both recording panes have equal width');
+    qaCheck(dance.recorder===recorder&&dance.session===session&&dance.stream===stream&&dance.isRecording,'Layout changes preserve the active native recording');
+   }
+  }
+ }
+ frame.style.width='756px';frame.style.height='1126px';document.documentElement.style.setProperty('--safe-top','32px');document.documentElement.style.setProperty('--safe-bottom','20px');dance.setRecordReference('split');$('cameraSource').style.setProperty('--camera-ratio','1');
+ qaReport('LAYOUT AUDIT COMPLETE: '+checks+' cases');const complete=parent.document.createElement('span');complete.id='layoutDone';complete.textContent='Layout checks passed';parent.document.body.append(complete);
+}
 async function qaSavedMotion(blob){
  const probe=document.createElement('video'),strip=document.createElement('canvas');strip.width=320;strip.height=1;const pixels=strip.getContext('2d',{willReadFrequently:true});
  probe.muted=true;probe.playsInline=true;probe.style.cssText='position:fixed;top:300px;right:0;width:160px;height:284px;z-index:100;pointer-events:none';document.body.append(probe);
@@ -31,20 +59,21 @@ window.runRecordingAudit=async()=>{try{
   const timer=setInterval(async()=>{if(track.readyState==='ended'){clearInterval(timer);writer.close().catch(()=>{});return;}if(busy)return;busy=true;paint();const picture=new VideoFrame(rawCanvas,{timestamp:Math.round((performance.now()-epoch)*1000)});try{await writer.write(picture);}catch{}finally{picture.close();busy=false;}},1000/30);
   return new MediaStream([track]);
  };SlowMoCamera.orientation=()=>landscape?'landscape':'portrait';$('cameraFacing').value='user';localStorage.setItem('slowmo-camera-mirror-user','false');
- setSpeed(.65);loopA=2;loopB=4.6;loopOn=true;renderLoop();$('prepareSeconds').value='0';$('recordAudio').value='reference';dance.setRecordReference('split');dance.openPractice();await dance.enableCamera();
+ setSpeed(.65);loopA=2;loopB=new URLSearchParams(parent.location.search).has('layout')?13.5:4.6;loopOn=true;renderLoop();$('prepareSeconds').value='0';$('recordAudio').value='reference';dance.setRecordReference('split');dance.openPractice();await dance.enableCamera();
  const sensor=$('cameraSource'),sensorBox=sensor.getBoundingClientRect();
  qaCheck(sensor.closest('#practiceDialog')&&!sensor.closest('[inert]'),'Camera source is inside active framing, outside inert viewer');
  qaCheck(getComputedStyle(sensor).opacity==='1'&&sensorBox.width>100&&sensorBox.height>100,'Camera source has a visible full-size framing surface');
- qaCheck(Math.abs(sensorBox.width/sensorBox.height-rawCanvas.width/rawCanvas.height)<.01,'Native framing matches the saved camera field of view');
+ qaCameraFills('cameraPreviewHost','Native framing');
  qaCheck(!dance.cameraFrames&&$('cameraPreview').paused,'Framing uses native camera without a canvas overlay or second decoder');
  qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,'),'Front camera starts mirrored despite a legacy saved off preference');
  qaCheck(getComputedStyle($('cameraPreviewHost')).transform==='none','Framing parent does not mirror a second time');
+ if(new URLSearchParams(parent.location.search).has('layout')){await qaCameraLayout();return;}
  if(new URLSearchParams(parent.location.search).has('framing')){qaReport('NATIVE FRAMING READY');return;}
  $('practiceDialog').close();
  const attempts=[];for(let i=0;i<4;i++){
   if(!i)await dance.startMemory(true);else{const pending=dance.retry();if(i===1)dance.retry();await pending;}
   await qaUntil(()=>dance.session?.playing&&dance.isRecording);const active=dance.session,encoder=dance.recorder;
-  qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(sensor.parentElement===$('recordMonitor')&&sensor.getBoundingClientRect().width>100,'Attempt '+(i+1)+': same native camera remains full size');qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,')&&getComputedStyle($('recordMonitor')).transform==='none','Attempt '+(i+1)+': native camera has exactly one selfie transform');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
+  qaCameraFills('recordMonitor','Attempt '+(i+1));qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(sensor.parentElement===$('recordMonitor')&&sensor.getBoundingClientRect().width>100,'Attempt '+(i+1)+': same native camera remains full size');qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,')&&getComputedStyle($('recordMonitor')).transform==='none','Attempt '+(i+1)+': native camera has exactly one selfie transform');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
   qaCheck(dance.recorder.stream.getVideoTracks()[0]===dance.stream.getVideoTracks()[0]&&!dance.cameraFrames,'Attempt '+(i+1)+': encoder uses the original camera track without canvas copies');await qaSleep(i===3?800:i===2?6500:1700);dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
   const motion=await qaSavedMotion(take.blob);qaReport('Saved motion: '+JSON.stringify(motion));const savedLink=parent.document.createElement('a');savedLink.textContent='Download attempt '+(i+1);savedLink.download='slowmo-motion-'+(i+1)+'.'+(take.blob.type.includes('mp4')?'mp4':'webm');savedLink.href=URL.createObjectURL(take.blob);parent.document.body.append(savedLink);qaCheck(motion.width===rawCanvas.width&&motion.height===rawCanvas.height,'Attempt '+(i+1)+': saved camera orientation matches preview');qaCheck(motion.decodedFramesPerSecond>=20,'Attempt '+(i+1)+': saved video decodes at least 20 camera frames per second');
   if(i===2){const link=parent.document.createElement('a');link.textContent='Download recorded motion QA';link.download='slowmo-native-recording-qa.'+(take.blob.type.includes('mp4')?'mp4':'webm');link.href=URL.createObjectURL(take.blob);parent.document.body.append(link);}
