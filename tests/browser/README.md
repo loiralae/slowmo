@@ -20,3 +20,5 @@ python tests/browser/prepare-recording-qa.py --clean
 ```
 
 For the frozen-camera regression, open `/__retry.html?faults=1` and run the same audit. This deliberately repeats camera callback timestamps and injects a transient canvas drawing failure for each camera session; all four attempts must continue copying frames and produce reviewable recordings. This is a synthetic fault test, not a physical iPad test.
+
+Camera presentation checks assert that framing uses the native camera without a canvas overlay or second video decoder, that the native video remains full-size during takes, and that selfie mirroring occurs exactly once. Use `/__retry.html?framing=1` to stop in setup and visually inspect/toggle the synthetic camera. This does not measure hardware camera latency. On iPad, check that framing and recording are smooth and mirrored, then repeat with front/rear cameras, portrait/landscape, reference shown/hidden, and Retry. Confirm the saved take retains its starting orientation and expected field of view.

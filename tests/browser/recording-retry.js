@@ -21,12 +21,16 @@ window.runRecordingAudit=async()=>{try{
  const sensor=$('cameraSource'),sensorBox=sensor.getBoundingClientRect();
  qaCheck(sensor.closest('#practiceDialog')&&!sensor.closest('[inert]'),'Camera source is inside active framing, outside inert viewer');
  qaCheck(getComputedStyle(sensor).opacity==='1'&&sensorBox.width>100&&sensorBox.height>100,'Camera source has a visible full-size framing surface');
- qaCheck(dance.cameraFrames.canvas.parentElement===$('cameraPreviewHost')&&$('cameraPreview').paused,'Framing displays normalized canvas without a second video decoder');
- dance.mountCameraSource(false);$('practiceDialog').close();
+ qaCheck(Math.abs(sensorBox.width/sensorBox.height-.5625)<.01,'Portrait native framing matches the saved 9:16 field of view');
+ qaCheck(!dance.cameraFrames&&$('cameraPreview').paused,'Framing uses native camera without a canvas overlay or second decoder');
+ dance.updateCameraMirror(true);qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,'),'Native framing has one selfie transform');
+ qaCheck(getComputedStyle($('cameraPreviewHost')).transform==='none','Framing parent does not mirror a second time');
+ if(new URLSearchParams(parent.location.search).has('framing')){qaReport('NATIVE FRAMING READY');return;}
+ $('practiceDialog').close();
  const attempts=[];for(let i=0;i<4;i++){
   if(!i)await dance.startMemory(true);else{const pending=dance.retry();if(i===1)dance.retry();await pending;}
   await qaUntil(()=>dance.session?.playing&&dance.isRecording);const active=dance.session,encoder=dance.recorder;
-  qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
+  qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(sensor.parentElement===$('recordMonitor')&&sensor.getBoundingClientRect().width>100,'Attempt '+(i+1)+': same native camera remains full size');qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,')&&getComputedStyle($('recordMonitor')).transform==='none','Attempt '+(i+1)+': native camera has exactly one selfie transform');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
   const copied=dance.cameraFrames.framesDrawn;await qaSleep(i===3?800:i===2?6500:1700);qaCheck(dance.cameraFrames.framesDrawn>copied+2,'Attempt '+(i+1)+': camera processing keeps advancing');dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
   const data=await take.blob.arrayBuffer(),bytes=data.byteLength,audioCtx=new AudioContext();const decoded=await audioCtx.decodeAudioData(data),samples=decoded.getChannelData(0),windowSize=Math.round(decoded.sampleRate*.01),rms=[];
   for(let n=0;n+windowSize<=samples.length;n+=windowSize){let energy=0;for(let j=0;j<windowSize;j++)energy+=samples[n+j]*samples[n+j];rms.push(Math.sqrt(energy/windowSize));}
