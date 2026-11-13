@@ -55,7 +55,7 @@ html.viewport-measured .workspace.immersive:-webkit-full-screen{position:fixed;i
 /* Keep the empty picker above the media stages, with the entire box tappable. */
 .viewer:not(.loaded) .reference-stage{visibility:hidden}.empty{position:absolute;inset:0;z-index:1;cursor:pointer}.empty:focus-visible{outline:3px solid #c6a6ff;outline-offset:-6px}
 #recordMonitor{inset:0;top:0;right:0;width:100%;height:100%;z-index:3;border:0;border-radius:0;background:#000;object-fit:contain;pointer-events:auto}
-#cameraPreview.mirrored,#recordMonitor.mirrored{transform:scaleX(-1)}
+#cameraSource.mirrored{transform:scaleX(-1)}
 .recording-active .transport,.recording-active .speed-card,.recording-active .practice-tools{display:none}.recording-active .panel{display:block;width:max-content;max-width:calc(100% - var(--safe-left) - var(--safe-right) - 32px)}.recording-active .session-tools{margin:0}.recording-active .session-tools>span{font-size:11px}
 .record-indicator button{min-width:54px;min-height:44px;border-radius:7px;color:#fff;background:#ffffff18;padding:0 12px}.record-indicator{padding:4px 6px 4px 10px}
 #savedTakePreview{display:block;object-fit:contain;width:100%;height:220px;background:#15111d;border-radius:10px;margin:10px 0}#savedTakes{max-width:100%;min-width:0}#savedTakesLabel{display:flex;flex-wrap:wrap;margin:8px 0}#takeStorageStatus{font-size:12px;color:#6a4c86}.mode-dialog #shareTake{background:#8062b5;color:white;border-color:#8062b5}
@@ -100,11 +100,16 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 @media(max-width:480px){.workspace .mode-dialog{padding:18px;scroll-padding:18px}.dialog-heading{gap:12px;margin-bottom:16px}#exportOptions>label:not(.check-option){grid-template-columns:1fr;gap:6px}#exportOptions{gap:16px}}
 
 /* Keep the physical camera video in the active framing surface, outside the
-   inert viewer, and show normalized frames without another video decoder. */
+   inert viewer. One native video supplies both live viewing and recording input. */
 #cameraPreviewHost{position:relative;min-height:120px;height:220px;overflow:hidden;background:#000;border-radius:12px;margin-top:12px}
 .camera-framing #cameraPreviewHost{height:100%;min-height:0;margin:0}
-#cameraPreviewHost #cameraSource,#cameraPreviewHost .camera-framing-picture{position:absolute;inset:0;width:100%;height:100%;opacity:1;object-fit:contain;pointer-events:none}
-#cameraPreviewHost .camera-framing-picture{z-index:1}
-#cameraPreviewHost.mirrored{transform:scaleX(-1)}
+#cameraPreviewHost #cameraSource,#recordMonitor #cameraSource{position:absolute;inset:0;width:100%;height:100%;opacity:1;object-fit:contain;pointer-events:none}
 #cameraSourceHome{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
 #cameraSourceHome #cameraSource{opacity:1}
+
+/* One native camera view, sized to the saved take's field of view. Mirroring
+   belongs only to the video, so moving between surfaces cannot flip it twice. */
+#cameraPreviewHost,#recordMonitor{container-type:size}
+@supports(width:1cqw){
+ #cameraPreviewHost #cameraSource,#recordMonitor #cameraSource{inset:0;margin:auto;width:min(100cqw,calc(100cqh * var(--camera-ratio,0.5625)));height:min(100cqh,calc(100cqw / var(--camera-ratio,0.5625)));object-fit:cover}
+}
