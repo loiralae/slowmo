@@ -18,3 +18,5 @@ Before publishing:
 ```sh
 python tests/browser/prepare-recording-qa.py --clean
 ```
+
+For the frozen-camera regression, open `/__retry.html?faults=1` and run the same audit. This deliberately repeats camera callback timestamps and injects a transient canvas drawing failure for each camera session; all four attempts must continue copying frames and produce reviewable recordings. This is a synthetic fault test, not a physical iPad test.

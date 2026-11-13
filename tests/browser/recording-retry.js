@@ -7,6 +7,15 @@ window.runRecordingAudit=async()=>{try{
  await dance.referenceAudio.prime();
  const source=await fetch('/__tone.mp4').then(r=>r.blob()),dt=new DataTransfer();dt.items.add(new File([source],'retry-audit.mp4',{type:'video/mp4',lastModified:1}));file.files=dt.files;file.dispatchEvent(new Event('change'));await qaUntil(()=>video.readyState>=3);pausePlayback();
  const rawCanvas=document.createElement('canvas');rawCanvas.width=720;rawCanvas.height=1280;const ctx=rawCanvas.getContext('2d');let frame=0;const paint=()=>{ctx.fillStyle=frame%2?'#8762c0':'#9672d0';ctx.fillRect(0,0,720,1280);ctx.fillStyle='#fff';ctx.font='60px sans-serif';ctx.fillText('CAMERA '+frame++,60,640);requestAnimationFrame(paint);};paint();
+ // Optional fault injection for the WebKit-style frozen frame callback case.
+ if(new URLSearchParams(parent.location.search).has('faults')){
+  const Original=SlowMoCamera.CameraFrames;
+  SlowMoCamera.CameraFrames=class extends Original{constructor(source,direction){
+   if(source.requestVideoFrameCallback){const request=source.requestVideoFrameCallback.bind(source);source.requestVideoFrameCallback=cb=>request((now,meta)=>cb(now,{...meta,mediaTime:0}));}
+   super(source,direction);const draw=this.context.drawImage.bind(this.context);let fail=true;
+   this.context.drawImage=(...args)=>{if(fail){fail=false;throw new DOMException('Injected temporary camera pixel loss','InvalidStateError');}return draw(...args);};
+  }};qaReport('Fault injection: repeated frame timestamps and one transient draw failure per camera');
+ }
  let cameras=0;navigator.mediaDevices.getUserMedia=async()=>{cameras++;return rawCanvas.captureStream(30);};SlowMoCamera.orientation=()=> 'portrait';
  setSpeed(.65);loopA=2;loopB=4.6;loopOn=true;renderLoop();$('prepareSeconds').value='0';$('recordAudio').value='reference';dance.setRecordReference('split');dance.openPractice();await dance.enableCamera();
  const sensor=$('cameraSource'),sensorBox=sensor.getBoundingClientRect();
@@ -18,7 +27,7 @@ window.runRecordingAudit=async()=>{try{
   if(!i)await dance.startMemory(true);else{const pending=dance.retry();if(i===1)dance.retry();await pending;}
   await qaUntil(()=>dance.session?.playing&&dance.isRecording);const active=dance.session,encoder=dance.recorder;
   qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
-  await qaSleep(i===3?800:i===2?6500:1700);dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
+  const copied=dance.cameraFrames.framesDrawn;await qaSleep(i===3?800:i===2?6500:1700);qaCheck(dance.cameraFrames.framesDrawn>copied+2,'Attempt '+(i+1)+': camera processing keeps advancing');dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
   const data=await take.blob.arrayBuffer(),bytes=data.byteLength,audioCtx=new AudioContext();const decoded=await audioCtx.decodeAudioData(data),samples=decoded.getChannelData(0),windowSize=Math.round(decoded.sampleRate*.01),rms=[];
   for(let n=0;n+windowSize<=samples.length;n+=windowSize){let energy=0;for(let j=0;j<windowSize;j++)energy+=samples[n+j]*samples[n+j];rms.push(Math.sqrt(energy/windowSize));}
   let first=rms.findIndex(n=>n>.01),last=rms.findLastIndex(n=>n>.01),quiet=0,maxQuiet=0;for(let n=first+15;n<last-15;n++){quiet=rms[n]<.005?quiet+1:0;maxQuiet=Math.max(maxQuiet,quiet);}
