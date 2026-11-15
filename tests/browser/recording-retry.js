@@ -28,7 +28,7 @@ async function qaCameraLayout(){
   for(const mode of ['split','hidden'])for(const safe of [false,true]){
    document.documentElement.style.setProperty('--safe-top',safe?'32px':'0px');document.documentElement.style.setProperty('--safe-bottom',safe?'20px':'0px');dance.setRecordReference(mode);
    for(const ratio of ['0.5625','1','1.777777778']){$('cameraSource').style.setProperty('--camera-ratio',ratio);qaCameraFills('recordMonitor',width+'x'+height+' '+mode+', safe area '+safe+', cached ratio '+ratio);checks++;
-    if(mode==='split'){const a=$('referenceStage').getBoundingClientRect(),b=$('recordMonitor').getBoundingClientRect(),v=$('cameraSource'),share=SlowMoCamera.referenceShare(a.width+b.width,a.height,video.videoWidth,video.videoHeight,v.videoWidth,v.videoHeight);qaCheck(Math.abs(a.width/(a.width+b.width)-share)<.002,'Recording panes use proportional landscape widths and equal portrait widths');}
+    if(mode==='split'){const a=$('referenceStage').getBoundingClientRect(),b=$('recordMonitor').getBoundingClientRect(),v=$('cameraSource'),share=SlowMoCamera.referenceShare(a.width+b.width,a.height,video.videoWidth,video.videoHeight,v.videoWidth,v.videoHeight);qaCheck(Math.abs(a.width/(a.width+b.width)-share)<.002,'Recording panes prioritize full-height reference in landscape and equal portrait widths');}
     qaCheck(dance.recorder===recorder&&dance.session===session&&dance.stream===stream&&dance.isRecording,'Layout changes preserve the active native recording');
    }
   }
@@ -75,7 +75,7 @@ window.runRecordingAudit=async()=>{try{
  qaCheck(getComputedStyle($('cameraPreviewHost')).transform==='none','Framing parent does not mirror a second time');
  if(new URLSearchParams(parent.location.search).has('wide')){
   const frame=parent.document.getElementById('app');frame.style.width='1126px';frame.style.height='756px';loopB=13.5;renderLoop();await dance.startMemory(true);await qaUntil(()=>dance.session?.playing&&dance.isRecording);
-  await qaUntil(()=>{const ref=$('referenceStage').getBoundingClientRect(),cam=$('recordMonitor').getBoundingClientRect();return Math.abs(ref.height-756)<1&&cam.width>ref.width*2.9;});qaCameraFills('recordMonitor','Landscape visual inspection');qaReport('WIDE RECORDING READY');return;
+  await qaUntil(()=>{const ref=$('referenceStage').getBoundingClientRect(),cam=$('recordMonitor').getBoundingClientRect();return Math.abs(ref.height-756)<1&&Math.abs(ref.width/(video.videoWidth/video.videoHeight)-ref.height)<1;});qaCameraFills('recordMonitor','Landscape visual inspection');qaReport('WIDE RECORDING READY');return;
  }
  if(new URLSearchParams(parent.location.search).has('layout')){await qaCameraLayout();return;}
  if(new URLSearchParams(parent.location.search).has('framing')){qaReport('NATIVE FRAMING READY');return;}
@@ -95,7 +95,7 @@ window.runRecordingAudit=async()=>{try{
     qaCheck(dance.recorder===encoder&&dance.session===active&&active.recordEpoch===epoch&&dance.stream.getVideoTracks()[0]===originalTrack&&dance.isRecording,'Rotation continues the same recorder, native track and sync clock');
     qaCheck(!video.paused&&video.playbackRate===preferred,'Rotation keeps reference music playing at selected speed');
     const ref=$('referenceStage').getBoundingClientRect(),cam=$('recordMonitor').getBoundingClientRect();
-    if(pw>ph){qaCheck(cam.width>ref.width*2.9,'Landscape gives the wide camera more width than the portrait reference');qaCheck(cam.width/(width/height)>(pw/2)/(width/height)*1.4,'Landscape camera image is substantially larger than an equal split');}
+    if(pw>ph){qaCheck(Math.abs(ref.width/(video.videoWidth/video.videoHeight)-ref.height)<1,'Landscape reference uses the full available height');qaCheck(cam.width/(width/height)>(pw/2)/(width/height),'Camera still uses more space than an equal split');}
     else qaCheck(Math.abs(cam.width-ref.width)<1,'Portrait returns to equal left/right panes');
    }
   }
