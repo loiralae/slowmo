@@ -34,18 +34,31 @@ function nativeFrame(video){
  // immediately after getUserMedia. WebKit can swap them on its first frame.
  return {path:'native',orientation:video.videoHeight>video.videoWidth?'portrait':'landscape',width:video.videoWidth,height:video.videoHeight};
 }
-// Fit the element itself, then use object-fit:fill. Some WebKit camera layers
-// apply contain before their orientation transform and paint a shrunken image
-// inside an otherwise correctly sized DOM box. This avoids that second fit.
-function previewBox(paneWidth,paneHeight,frameWidth,frameHeight,direction=null){
- if(![paneWidth,paneHeight,frameWidth,frameHeight].every(n=>Number.isFinite(n)&&n>0))return null;
- let width=frameWidth,height=frameHeight;
- if(direction==='portrait'){width=Math.min(frameWidth,frameHeight);height=Math.max(frameWidth,frameHeight);}
- else if(direction==='landscape'){width=Math.max(frameWidth,frameHeight);height=Math.min(frameWidth,frameHeight);}
- const scale=Math.min(paneWidth/width,paneHeight/height);width*=scale;height*=scale;
- return {width,height,left:(paneWidth-width)/2,top:(paneHeight-height)/2};
+// Display pixels only. Never force camera axes from screen orientation: the
+// decoded frame already includes the browser's orientation metadata.
+function previewSize(width,height,maxEdge=960){
+ if(![width,height,maxEdge].every(n=>Number.isFinite(n)&&n>0))return null;
+ const scale=Math.min(1,maxEdge/Math.max(width,height));
+ return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale))};
 }
-function needsOrientedPreview(navigator){return /iPad|iPhone|iPod/.test(navigator?.userAgent||'')||(navigator?.platform==='MacIntel'&&navigator?.maxTouchPoints>1);}
+class CameraDisplay{
+ constructor(source){
+  this.source=source;this.win=source.ownerDocument.defaultView;this.canvas=source.ownerDocument.createElement('canvas');
+  this.canvas.className='camera-display';this.canvas.setAttribute('aria-hidden','true');this.canvas.hidden=true;
+  this.context=this.canvas.getContext('2d',{alpha:false});this.stopped=false;this.frame=0;this.last=-Infinity;this.mediaTime=null;
+  const tick=now=>{if(this.stopped)return;if(now-this.last>=1000/30-1&&source.currentTime!==this.mediaTime){if(this.draw()){this.last=now;this.mediaTime=source.currentTime;}}if(!this.stopped)this.frame=this.win.requestAnimationFrame(tick);};
+  this.draw();this.frame=this.win.requestAnimationFrame(tick);
+ }
+ draw(){
+  if(this.stopped||!this.context||this.source.readyState<2)return false;
+  const dimensions=previewSize(this.source.videoWidth,this.source.videoHeight);if(!dimensions)return false;
+  if(this.canvas.width!==dimensions.width||this.canvas.height!==dimensions.height){this.canvas.width=dimensions.width;this.canvas.height=dimensions.height;}
+  try{this.context.drawImage(this.source,0,0,this.canvas.width,this.canvas.height);this.canvas.hidden=false;this.canvas.dataset.frames=String((Number(this.canvas.dataset.frames)||0)+1);return true;}
+  catch{this.canvas.hidden=true;return false;}
+ }
+ setMirrored(value){this.canvas.classList.toggle('mirrored',!!value);}
+ stop(){this.stopped=true;this.win.cancelAnimationFrame(this.frame);this.canvas.remove();}
+}
 function freshPreview(previous){
  const source=previous.cloneNode(false);source.removeAttribute('src');source.removeAttribute('style');source.removeAttribute('data-preview-fit');source.srcObject=null;source.autoplay=true;source.muted=true;source.playsInline=true;
  previous.pause();previous.srcObject=null;previous.replaceWith(source);return source;
@@ -96,5 +109,5 @@ class CameraFrames{
  }
  stop(){this.stopped=true;clearTimeout(this.timer);for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
 }
-return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,previewBox,needsOrientedPreview,freshPreview,CameraFrames};
+return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,previewSize,CameraDisplay,freshPreview,CameraFrames};
 });

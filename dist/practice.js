@@ -247,17 +247,11 @@ class DancePractice{
   return new Promise(resolve=>{this.prepResolve=resolve;const tick=()=>{if(token!==this.prepToken){resolve(false);return;}const n=Math.ceil((deadline-performance.now())/1000);if(n<=0){$('takePrep').hidden=true;this.prepTimer=null;this.prepResolve=null;resolve(true);return;}$('takePrepNumber').textContent=n;this.prepTimer=setTimeout(tick,80);};tick();});
  }
  cancelPreparation(){if(!this.preparing)return;this.session.cancelled=true;this.session.abort.abort();if(this.isRecording)this.stopRecording('Recording preparation cancelled.');++this.sessionEpoch;++this.prepToken;clearTimeout(this.prepTimer);this.prepResolve?.(false);this.prepResolve=null;this.preparing=false;$('takePrep').hidden=true;this.releaseCamera();this.updateControls();renderLoop();}
- updateCameraAspect(direction=SlowMoCamera.orientation(window)){
-  const source=$('cameraSource'),host=source.parentElement;if(!this.stream||!['cameraPreviewHost','recordMonitor'].includes(host?.id))return;
-  const pane=host.getBoundingClientRect();const box=SlowMoCamera.previewBox(pane.width,pane.height,source.videoWidth,source.videoHeight,SlowMoCamera.needsOrientedPreview(navigator)?direction:null);if(!box)return;
-  Object.assign(source.style,{width:box.width+'px',height:box.height+'px',left:box.left+'px',top:box.top+'px',right:'auto',bottom:'auto',margin:'0px',objectFit:'fill'});source.dataset.previewFit='explicit';
- }
- cameraResized(){if(!this.stream)return;const v=$('cameraSource'),frame=this.session?.cameraFrame;if(this.isRecording&&frame&&v.videoWidth>0&&v.videoHeight>0&&(v.videoWidth!==frame.width||v.videoHeight!==frame.height)){this.stopRecording('Camera orientation changed. This take ended to keep its picture consistent; rotate before starting your next take.');return;}this.updateCameraAspect(SlowMoCamera.orientation(window));}
+ updateCameraAspect(){this.cameraDisplay?.draw();}
+ cameraResized(){if(!this.stream)return;const v=$('cameraSource'),frame=this.session?.cameraFrame;if(this.isRecording&&frame&&v.videoWidth>0&&v.videoHeight>0&&(v.videoWidth!==frame.width||v.videoHeight!==frame.height)){this.stopRecording('Camera orientation changed. This take ended to keep its picture consistent; rotate before starting your next take.');return;}this.updateCameraAspect();}
  mountCameraSource(framing){
   const host=$(framing?'cameraPreviewHost':this.stream&&this.recordingView?'recordMonitor':'cameraSourceHome');host.append($('cameraSource'));
-  this.cameraPreviewObserver?.disconnect();this.cameraPreviewObserver=null;
-  if(host.id!=='cameraSourceHome'&&window.ResizeObserver){this.cameraPreviewObserver=new window.ResizeObserver(()=>this.updateCameraAspect(SlowMoCamera.orientation(window)));this.cameraPreviewObserver.observe(host);}
-  this.updateCameraAspect(SlowMoCamera.orientation(window));
+  if(this.cameraDisplay){host.append(this.cameraDisplay.canvas);this.cameraDisplay.setMirrored(this.cameraMirrored);this.cameraDisplay.draw();}
  }
  async enableCamera(){
   if(this.locked)return false;
@@ -277,17 +271,18 @@ class DancePractice{
    const source=$('cameraSource'),preview=$('cameraPreview');source.muted=true;source.playsInline=true;preview.muted=true;preview.playsInline=true;source.srcObject=stream;
    stage='camera playback';$('cameraStatus').textContent='Starting camera picture…';
    await SlowMoMedia.guard(source.play(),{signal});check();stage='camera frames';await SlowMoMedia.guard(SlowMoCamera.pictureReady(source),{signal});check();
-   // Framing is native camera playback only: no canvas copies or extra decoder.
-   // The recorder uses this camera track directly as well.
+   // A bounded display-only canvas bypasses the native WebKit camera layer.
+   // MediaRecorder still uses the original camera track, never this canvas.
+   this.cameraDisplay=new SlowMoCamera.CameraDisplay(source);this.mountCameraSource(true);
    const direction=SlowMoCamera.orientation(window);this.updateCameraAspect(direction);
    if(stream.getVideoTracks().some(t=>t.readyState==='ended'))throw new Error('The camera stopped. Enable camera again.');
    $('startTake').disabled=false;$('startTake').focus({preventScroll:true});$('cameraStatus').textContent=(direction==='portrait'?'Portrait':'Landscape')+' camera ready. Position yourself, then Start take.';
    for(const track of stream.getTracks())track.addEventListener('ended',()=>{if(this.stream!==stream)return;if(this.preparing){this.cancelPreparation();this.leaveMemory();}else if(this.isRecording)this.stopRecording('The camera or microphone was interrupted. You can review the partial take.');else this.releaseCamera();$('cameraStatus').textContent='Camera or microphone stopped. Enable camera again to record.';});
    return true;
-  }catch(e){if(!current())return false;this.releaseCamera();$('cameraStatus').textContent=e.name==='NotAllowedError'?'Camera or microphone permission was denied. Allow camera access, or choose Reference music instead of Microphone and try again. Practice only is always available.':e.name==='NotFoundError'?'No camera was found. Choose another camera or use Practice only.':'Camera setup stopped at '+stage+' (v24): '+e.message+' Tap Enable camera to retry. If it persists, close other camera apps and reopen SlowMo.';return false;
+  }catch(e){if(!current())return false;this.releaseCamera();$('cameraStatus').textContent=e.name==='NotAllowedError'?'Camera or microphone permission was denied. Allow camera access, or choose Reference music instead of Microphone and try again. Practice only is always available.':e.name==='NotFoundError'?'No camera was found. Choose another camera or use Practice only.':'Camera setup stopped at '+stage+' (v25): '+e.message+' Tap Enable camera to retry. If it persists, close other camera apps and reopen SlowMo.';return false;
   }finally{if(this.cameraSetupAbort===abort){this.cameraSetupAbort=null;$('enableCamera').disabled=false;}}
  }
- releaseCamera(invalidate=true){this.cameraPreviewObserver?.disconnect();this.cameraPreviewObserver=null;this.cameraSetupAbort?.abort();this.cameraSetupAbort=null;$('enableCamera').disabled=false;clearTimeout(this.cameraOrientationTimer);if(this.stream){const stream=this.stream;this.stream=null;stream.getTracks().forEach(t=>t.stop());}this.cameraFrames?.stop();this.cameraFrames?.canvas?.remove();this.cameraFrames=null;$('cameraSource').srcObject=null;this.mountCameraSource(false);this.audioCapture?.release();this.audioCapture=null;this.recordingStream=null;if(invalidate)++this.cameraRequest;$('cameraPreview').srcObject=null;$('recordMonitor').srcObject=null;this.setCameraVisible(false);$('startTake').disabled=true;}
+ releaseCamera(invalidate=true){this.cameraDisplay?.stop();this.cameraDisplay=null;this.cameraSetupAbort?.abort();this.cameraSetupAbort=null;$('enableCamera').disabled=false;clearTimeout(this.cameraOrientationTimer);if(this.stream){const stream=this.stream;this.stream=null;stream.getTracks().forEach(t=>t.stop());}this.cameraFrames?.stop();this.cameraFrames?.canvas?.remove();this.cameraFrames=null;$('cameraSource').srcObject=null;this.mountCameraSource(false);this.audioCapture?.release();this.audioCapture=null;this.recordingStream=null;if(invalidate)++this.cameraRequest;$('cameraPreview').srcObject=null;$('recordMonitor').srcObject=null;this.setCameraVisible(false);$('startTake').disabled=true;}
  async beginRecording(){
   const session=this.session,epoch=this.sessionEpoch,signal=session.abort.signal;const check=()=>{if(signal.aborted||epoch!==this.sessionEpoch||document.hidden)throw SlowMoMedia.abortError();};check();
   if(!this.stream)throw new Error('The camera stopped. Open Practice & Record to enable it again.');
@@ -379,7 +374,7 @@ class DancePractice{
   // saved "off" preference must not override this default. Manual toggles
   // still apply immediately to the current session.
   if(value===undefined){if($('cameraFacing').value==='user'||facing==='user')value=true;else{try{value=localStorage.getItem('slowmo-camera-mirror-environment')==='true';}catch{value=false;}}}
-  this.cameraMirrored=!!value;$('cameraSource').classList.toggle('mirrored',this.cameraMirrored);$('cameraPreviewHost').classList.remove('mirrored');$('cameraPreview').classList.toggle('mirrored',this.cameraMirrored);$('recordMonitor').classList.remove('mirrored');$('cameraMirror').setAttribute('aria-pressed',String(value));$('liveMirrorCamera').setAttribute('aria-pressed',String(value));
+  this.cameraMirrored=!!value;this.cameraDisplay?.setMirrored(this.cameraMirrored);$('cameraSource').classList.toggle('mirrored',this.cameraMirrored);$('cameraPreviewHost').classList.remove('mirrored');$('cameraPreview').classList.toggle('mirrored',this.cameraMirrored);$('recordMonitor').classList.remove('mirrored');$('cameraMirror').setAttribute('aria-pressed',String(value));$('liveMirrorCamera').setAttribute('aria-pressed',String(value));
  }
  setRecordReference(value){
   if(value===undefined){try{value=localStorage.getItem('slowmo-record-reference');}catch{}}

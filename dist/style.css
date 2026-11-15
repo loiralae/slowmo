@@ -107,7 +107,9 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 #cameraSourceHome{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
 #cameraSourceHome #cameraSource{opacity:1}
 
-/* Explicit aspect-fit dimensions + native fill avoid WebKit applying contain
-   against the camera's pre-rotation sensor size. No canvas preview is used. */
-#cameraPreviewHost #cameraSource[data-preview-fit="explicit"],#recordMonitor #cameraSource[data-preview-fit="explicit"]{object-fit:fill}
+/* The display canvas copies the complete decoded frame with its own aspect
+   ratio. Both panes contain-fit; neither device axes nor native video-layer
+   transforms can stretch the preview. The encoder never reads this canvas. */
+#cameraPreviewHost .camera-display,#recordMonitor .camera-display{display:block;position:absolute;inset:0;width:100%;height:100%;margin:0;object-fit:contain;object-position:50% 50%;background:#000;pointer-events:none}
+.camera-display.mirrored{transform:scaleX(-1)}
 #recordMonitor{overflow:hidden}
