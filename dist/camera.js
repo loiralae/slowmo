@@ -41,6 +41,13 @@ function previewSize(width,height,maxEdge=960){
  const scale=Math.min(1,maxEdge/Math.max(width,height));
  return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale))};
 }
+// Landscape panes share the largest common picture height. Portrait keeps
+// the familiar equal left/right split. This changes pane geometry, not pixels.
+function referenceShare(width,height,referenceWidth,referenceHeight,cameraWidth,cameraHeight){
+ if(![width,height,referenceWidth,referenceHeight,cameraWidth,cameraHeight].every(n=>Number.isFinite(n)&&n>0)||width<=height)return .5;
+ const a=referenceWidth/referenceHeight,b=cameraWidth/cameraHeight;
+ return Math.max(.2,Math.min(.8,a/(a+b)));
+}
 class CameraDisplay{
  constructor(source){
   this.source=source;this.win=source.ownerDocument.defaultView;this.canvas=source.ownerDocument.createElement('canvas');
@@ -109,5 +116,5 @@ class CameraFrames{
  }
  stop(){this.stopped=true;clearTimeout(this.timer);for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
 }
-return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,previewSize,CameraDisplay,freshPreview,CameraFrames};
+return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,previewSize,referenceShare,CameraDisplay,freshPreview,CameraFrames};
 });
