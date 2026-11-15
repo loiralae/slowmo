@@ -113,3 +113,9 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 #cameraPreviewHost .camera-display,#recordMonitor .camera-display{display:block;position:absolute;inset:0;width:100%;height:100%;margin:0;object-fit:contain;object-position:50% 50%;background:#000;pointer-events:none}
 .camera-display.mirrored{transform:scaleX(-1)}
 #recordMonitor{overflow:hidden}
+
+/* A paused video has a large direct Play target; playing stays unobstructed. */
+.center-play{position:absolute;z-index:4;left:50%;top:50%;transform:translate(-50%,-50%);width:88px;height:88px;min-height:88px;border-radius:50%;border:1px solid #e0ccff70;background:#191320bb;color:#e9d8ff;display:grid;place-items:center;cursor:pointer;touch-action:manipulation;backdrop-filter:blur(8px)}
+.center-play svg{width:44px;height:44px;fill:currentColor;pointer-events:none}
+.immersive.controls-hidden .panel,.immersive.controls-hidden .player-toolbar{transition:opacity .18s ease,visibility .18s ease}
+@media(prefers-reduced-motion:reduce){.immersive.controls-hidden .panel,.immersive.controls-hidden .player-toolbar{transition:none}}
