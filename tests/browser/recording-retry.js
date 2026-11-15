@@ -28,7 +28,7 @@ async function qaCameraLayout(){
   for(const mode of ['split','hidden'])for(const safe of [false,true]){
    document.documentElement.style.setProperty('--safe-top',safe?'32px':'0px');document.documentElement.style.setProperty('--safe-bottom',safe?'20px':'0px');dance.setRecordReference(mode);
    for(const ratio of ['0.5625','1','1.777777778']){$('cameraSource').style.setProperty('--camera-ratio',ratio);qaCameraFills('recordMonitor',width+'x'+height+' '+mode+', safe area '+safe+', cached ratio '+ratio);checks++;
-    if(mode==='split')qaCheck(Math.abs($('recordMonitor').getBoundingClientRect().width-$('referenceStage').getBoundingClientRect().width)<1,'Both recording panes have equal width');
+    if(mode==='split'){const a=$('referenceStage').getBoundingClientRect(),b=$('recordMonitor').getBoundingClientRect(),v=$('cameraSource'),share=SlowMoCamera.referenceShare(a.width+b.width,a.height,video.videoWidth,video.videoHeight,v.videoWidth,v.videoHeight);qaCheck(Math.abs(a.width/(a.width+b.width)-share)<.002,'Recording panes use proportional landscape widths and equal portrait widths');}
     qaCheck(dance.recorder===recorder&&dance.session===session&&dance.stream===stream&&dance.isRecording,'Layout changes preserve the active native recording');
    }
   }
@@ -73,6 +73,10 @@ window.runRecordingAudit=async()=>{try{
  qaCheck(!dance.cameraFrames&&dance.cameraDisplay&&$('cameraPreview').paused,'Framing uses a display-only canvas and no second decoder or capture stream');
  qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,'),'Front camera starts mirrored despite a legacy saved off preference');
  qaCheck(getComputedStyle($('cameraPreviewHost')).transform==='none','Framing parent does not mirror a second time');
+ if(new URLSearchParams(parent.location.search).has('wide')){
+  const frame=parent.document.getElementById('app');frame.style.width='1126px';frame.style.height='756px';loopB=13.5;renderLoop();await dance.startMemory(true);await qaUntil(()=>dance.session?.playing&&dance.isRecording);
+  await qaUntil(()=>{const ref=$('referenceStage').getBoundingClientRect(),cam=$('recordMonitor').getBoundingClientRect();return Math.abs(ref.height-756)<1&&cam.width>ref.width*2.9;});qaCameraFills('recordMonitor','Landscape visual inspection');qaReport('WIDE RECORDING READY');return;
+ }
  if(new URLSearchParams(parent.location.search).has('layout')){await qaCameraLayout();return;}
  if(new URLSearchParams(parent.location.search).has('framing')){qaReport('NATIVE FRAMING READY');return;}
  $('practiceDialog').close();
@@ -80,7 +84,22 @@ window.runRecordingAudit=async()=>{try{
   if(!i)await dance.startMemory(true);else{const pending=dance.retry();if(i===1)dance.retry();await pending;}
   await qaUntil(()=>dance.session?.playing&&dance.isRecording);const active=dance.session,encoder=dance.recorder,currentSensor=$('cameraSource');if(i)qaCheck(currentSensor!==previousSensor,'Retry gets a fresh native camera surface');previousSensor=currentSensor;
   qaCameraFills('recordMonitor','Attempt '+(i+1));qaCheck($('cameraPreview').paused,'Attempt '+(i+1)+': hidden setup preview is paused');qaCheck(currentSensor.parentElement===$('recordMonitor')&&currentSensor.getBoundingClientRect().width>100,'Attempt '+(i+1)+': same native camera remains full size');qaCheck(getComputedStyle(currentSensor).transform.startsWith('matrix(-1,')&&getComputedStyle($('recordMonitor')).transform==='none','Attempt '+(i+1)+': native camera has exactly one selfie transform');qaCheck(video.playbackRate===preferred,'Attempt '+(i+1)+': reference keeps selected speed');
-  qaCheck(dance.recorder.stream.getVideoTracks()[0]===dance.stream.getVideoTracks()[0]&&!dance.cameraFrames,'Attempt '+(i+1)+': encoder uses the original camera track without canvas copies');await qaSleep(i===3?800:i===2?6500:1700);dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
+  qaCheck(dance.recorder.stream.getVideoTracks()[0]===dance.stream.getVideoTracks()[0]&&!dance.cameraFrames,'Attempt '+(i+1)+': encoder uses the original camera track without canvas copies');
+  if(i===2&&new URLSearchParams(parent.location.search).has('rotate')){
+   const frame=parent.document.getElementById('app'),originalTrack=dance.stream.getVideoTracks()[0],epoch=active.recordEpoch;
+   for(const [width,height,pw,ph] of [[1280,720,1126,756],[720,1280,756,1126]]){
+    await qaSleep(700);rawCanvas.width=width;rawCanvas.height=height;frame.style.width=pw+'px';frame.style.height=ph+'px';
+    await qaUntil(()=>$('cameraSource').videoWidth===width&&$('cameraSource').videoHeight===height&&dance.cameraDisplay?.canvas.width/dance.cameraDisplay?.canvas.height===width/height);
+    await qaUntil(()=>{const r=$('referenceStage').getBoundingClientRect(),c=$('recordMonitor').getBoundingClientRect();const expected=SlowMoCamera.referenceShare(r.width+c.width,r.height,video.videoWidth,video.videoHeight,width,height);return Math.abs(r.height-ph)<1&&Math.abs(r.width+c.width-pw)<1&&Math.abs(r.width/(r.width+c.width)-expected)<.002;});
+    qaCameraFills('recordMonitor','Rotated '+pw+'x'+ph);
+    qaCheck(dance.recorder===encoder&&dance.session===active&&active.recordEpoch===epoch&&dance.stream.getVideoTracks()[0]===originalTrack&&dance.isRecording,'Rotation continues the same recorder, native track and sync clock');
+    qaCheck(!video.paused&&video.playbackRate===preferred,'Rotation keeps reference music playing at selected speed');
+    const ref=$('referenceStage').getBoundingClientRect(),cam=$('recordMonitor').getBoundingClientRect();
+    if(pw>ph){qaCheck(cam.width>ref.width*2.9,'Landscape gives the wide camera more width than the portrait reference');qaCheck(cam.width/(width/height)>(pw/2)/(width/height)*1.4,'Landscape camera image is substantially larger than an equal split');}
+    else qaCheck(Math.abs(cam.width-ref.width)<1,'Portrait returns to equal left/right panes');
+   }
+  }
+  await qaSleep(i===3?800:i===2?6500:1700);dance.stopRecording();await qaUntil(()=>dance.lastTake&&dance.session===active&&!dance.locked);const take=dance.lastTake;await qaUntil(()=>take.savedLocally||take.storageStatus?.includes('failed'));
   const motion=await qaSavedMotion(take.blob);qaReport('Saved motion: '+JSON.stringify(motion));const savedLink=parent.document.createElement('a');savedLink.textContent='Download attempt '+(i+1);savedLink.download='slowmo-motion-'+(i+1)+'.'+(take.blob.type.includes('mp4')?'mp4':'webm');savedLink.href=URL.createObjectURL(take.blob);parent.document.body.append(savedLink);qaCheck(motion.width===rawCanvas.width&&motion.height===rawCanvas.height,'Attempt '+(i+1)+': saved camera orientation matches preview');qaCheck(motion.decodedFramesPerSecond>=20,'Attempt '+(i+1)+': saved video decodes at least 20 camera frames per second');
   if(i===2){const link=parent.document.createElement('a');link.textContent='Download recorded motion QA';link.download='slowmo-native-recording-qa.'+(take.blob.type.includes('mp4')?'mp4':'webm');link.href=URL.createObjectURL(take.blob);parent.document.body.append(link);}
   const data=await take.blob.arrayBuffer(),bytes=data.byteLength,audioCtx=new AudioContext();const decoded=await audioCtx.decodeAudioData(data),samples=decoded.getChannelData(0),windowSize=Math.round(decoded.sampleRate*.01),rms=[];
