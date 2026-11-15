@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v24 (November 14, 2026). Native preview fitting and fresh camera surfaces address a WebKit portrait-camera shrinkage symptom; smooth native recording and default front-camera mirroring are preserved. Automated and synthetic-browser checks pass; physical iPad verification remains required.
+Source synchronized with deployed SlowMo v25 (November 14, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 173 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 186 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -81,10 +81,10 @@ The existing live app is hosted separately. Publishing this repository does **no
 
 [MIT](LICENSE). This covers the application code and included app icons. No user recordings or reference videos are included or licensed by this repository.
 
-## v24 camera preview follow-up
+## v25 camera preview correction
 
-Each camera setup/Retry creates a fresh native video display, avoiding reuse of an old WebKit camera layer. The display rectangle is explicitly fitted and centered from the camera aspect ratio and pane size, with orientation normalization on Apple touch devices. Native object-fit:fill is applied only after computing that aspect-preserving rectangle, avoiding a second contain calculation inside the camera layer. ResizeObserver updates the display after pane/visibility changes; it is disconnected on release. There is no canvas preview, per-frame copying, or change to the original camera-track recording path.
+The v24 orientation-normalized native display stretched the image on a real iPad; that approach is removed. Preview sizing no longer guesses camera axes from device orientation or uses object-fit:fill. A display-only canvas copies the complete decoded frame at its reported aspect ratio, bounded to 960 pixels on its longest edge. It uses a single animation loop capped at 30 redraws/second, skips unchanged frame times, and is stopped/removed on camera release. CSS contain-fitting centers the complete image within either pane. Mirroring affects only the displayed image.
 
-This is informed by [WebKit bug 259364](https://bugs.webkit.org/show_bug.cgi?id=259364), including the iOS 27 report of a reused portrait camera layer displaying at roughly 56% size. It is a matching symptom, not a confirmed diagnosis on the user's device.
+The canvas is never captured, encoded or supplied to MediaRecorder. Saved video continues to use the original getUserMedia track with existing soundtrack and synchronization logic. Fresh native elements remain in use for each camera setup/Retry. A failed canvas draw exposes the native display fallback.
 
-Validation: 182 Node tests, 30 browser layout combinations, and portrait/landscape synthetic-camera recording/retry audits. Downloaded native output is independently decoded to inspect motion, rather than treating nominal frame rate as proof of smoothness. Recheck on an actual iPad after fully closing/reopening the app: portrait reference shown, Hidden, Retry, then start a separate landscape take. Both panes should maximize their complete images without distortion. Good to know → Copy layout report now identifies build v24 and includes camera/pane dimensions if native rendering still differs.
+Tests include portrait, landscape and 4:3 frame proportions, a round pixel target to detect stretch, display cleanup, mirroring, capture-track identity, recording/retry and layout changes. Desktop synthetic-camera tests cannot establish physical iPad performance or native frame metadata. Close/reopen the updated app, test portrait Side by Side, Hidden, Retry and a separate landscape take; check the saved file remains smooth. Good to know → Copy layout report identifies v25 and includes preview pixel dimensions and draw count if a problem remains.
