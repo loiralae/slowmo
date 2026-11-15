@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {previewSize,CameraDisplay,freshPreview}=require('../dist/camera.js');
+const {previewSize,referenceShare,CameraDisplay,freshPreview}=require('../dist/camera.js');
 const {setup}=require('./helpers/controller.cjs');
 function fixture(width=720,height=1280){
  let callback,cancelled=0,removed=0;const draws=[],classes=new Set();
@@ -20,3 +20,9 @@ test('temporarily unavailable frames retain last complete preview and resume lat
 test('display draw failure exposes native fallback rather than a stale canvas',()=>{const f=fixture();f.display.context.drawImage=()=>{throw Error('frame unavailable');};assert.equal(f.display.draw(),false);assert.equal(f.canvas.hidden,true);});
 test('fresh native video replacement never stops a capture track',()=>{let replacement;const next={removeAttribute(){}};const old={cloneNode:()=>next,pause(){},srcObject:{},replaceWith(v){replacement=v;}};assert.equal(freshPreview(old),next);assert.equal(old.srcObject,null);assert.equal(replacement,next);assert.equal(next.muted,true);assert.equal(next.playsInline,true);});
 test('preview redraw during recording cannot replace the stream or recorder',()=>{const f=setup(),stream=f.target.stream={},recorder=f.target.recorder={state:'recording'};let draws=0;f.target.cameraDisplay={draw(){draws++;}};f.target.updateCameraAspect('portrait');assert.equal(draws,1);assert.equal(f.target.stream,stream);assert.equal(f.target.recorder,recorder);});
+
+test('landscape portrait-reference/wide-camera panes maximize a common image height',()=>{const share=referenceShare(1158,724,720,1280,1280,720);assert.ok(Math.abs(share-.240356083)<.000001);const cameraHeight=1158*(1-share)/(1280/720),referenceHeight=1158*share/(720/1280);assert.ok(Math.abs(cameraHeight-referenceHeight)<.001);assert.ok(cameraHeight>1158/2/(1280/720)*1.5);});
+test('portrait retains equal left/right panes regardless of camera aspect',()=>{assert.equal(referenceShare(756,1126,720,1280,1280,720),.5);});
+test('matching aspect ratios retain equal widths in landscape',()=>{assert.equal(referenceShare(1126,756,720,1280,720,1280),.5);});
+test('invalid metadata falls back safely and extreme ratios keep both panes usable',()=>{assert.equal(referenceShare(1126,756,0,0,1280,720),.5);for(const a of [.01,100]){const share=referenceShare(1126,756,a,1,1,1);assert.ok(share>=.2&&share<=.8);}});
+test('layout updates only a CSS pane width while keeping active recording resources',()=>{const f=setup(),recorder=f.target.recorder={},session=f.target.session={},stream=f.target.stream={};f.target.recordingView=true;f.target.recordReference='split';f.el('cameraSource').videoWidth=1280;f.el('cameraSource').videoHeight=720;f.el('recordMonitor').parentElement={getBoundingClientRect:()=>({width:1158,height:724})};let share;f.scope.player.style.setProperty=(name,value)=>{assert.equal(name,'--record-reference-width');share=parseFloat(value);};f.target.updateRecordingLayout();assert.ok(share>24&&share<25);assert.equal(f.target.recorder,recorder);assert.equal(f.target.session,session);assert.equal(f.target.stream,stream);});
