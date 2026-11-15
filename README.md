@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v26 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v27 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 191 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 192 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -96,3 +96,9 @@ Rotating no longer deliberately stops a take. Native camera resize events redraw
 Portrait guided recording keeps equal left/right panes. Landscape distributes width according to the reference and camera aspect ratios (with a 20% minimum per pane), maximizing their common fitted image height without cropping. A portrait reference with a wide camera gets approximately 24%/76% rather than 50%/50%; equal-aspect videos remain equal width. This changes layout only, not camera pixels or saved footage. The v25 aspect-preserving preview and direct native recording path remain.
 
 Physical iPad test: reopen v26, start in portrait, rotate to landscape and back while recording, then Stop. Confirm the timer/music never restart, preview stays correctly proportioned and mirrored, and the saved take plays continuously across both rotations in SlowMo and Photos/Files. Native Safari MP4 orientation metadata and Home Screen behavior require this device test; desktop simulations cannot establish them.
+
+## v27: reference-first landscape recording
+
+Landscape guided recording prioritizes the reference video: its pane gets enough width to show the full available height, while the camera preview fits in the remaining space. Both keep their original aspect ratios. The existing 20% minimum pane width prevents either view becoming unusable for extreme video shapes; portrait remains equal left/right. For a 9:16 reference in a 1126×756 viewport, the reference is 425.25×756 instead of being reduced to match a wide camera image's height.
+
+This is a display-layout adjustment. v26 continuous rotation, original-track recording, soundtrack, sync and v25 aspect-preserving selfie preview are unchanged. 192 automated tests pass, and a synthetic guided browser take verified the full-height reference and undistorted camera. Real iPad safe-area behavior requires device verification after reopening the updated app.
