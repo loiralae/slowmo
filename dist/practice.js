@@ -12,7 +12,7 @@ class DancePractice{
   this.stream=null;this.cameraRequest=0;this.recorder=null;this.lastTake=null;this.takeSaved=false;this.session=null;this.prepTimer=null;this.prepToken=0;this.internalPause=0;this.ignoreReferencePauses=0;this.sessionEpoch=0;this.stopReason='';this.referenceKey=null;this.savedTakes=[];this.takeRevision=0;this.savedPreviewURL=null;this.audioCapture=null;this.recordingStream=null;this.cameraFrames=null;this.cameraOrientationTimer=null;this.referenceAudio=new SlowMoReferenceAudio(video,()=>{if(this.isRecording)this.stopRecording('Reference audio was interrupted. This partial take can be reviewed; retry to record a continuous attempt.');});
   attachVideoGestures(practice);this.bindComparison();this.bindPractice();
   this.restoreTakes();this.applyComparisonLayout();this.setRecordReference();
-  const cameraRotation=()=>{clearTimeout(this.cameraOrientationTimer);this.cameraOrientationTimer=setTimeout(()=>{if(this.stream&&!this.locked){const direction=SlowMoCamera.orientation(window);this.cameraFrames?.setOrientation(direction);this.updateCameraAspect(direction);$('cameraStatus').textContent=(direction==='portrait'?'Portrait':'Landscape')+' camera ready. Position yourself, then Start take.';}},150);};
+  const cameraRotation=()=>{clearTimeout(this.cameraOrientationTimer);this.cameraOrientationTimer=setTimeout(()=>{if(this.stream){const direction=SlowMoCamera.orientation(window);this.updateCameraAspect(direction);if(!this.locked)$('cameraStatus').textContent=(direction==='portrait'?'Portrait':'Landscape')+' camera ready. Position yourself, then Start take.';}},150);};
   window.addEventListener('orientationchange',cameraRotation);window.addEventListener('resize',cameraRotation);window.screen?.orientation?.addEventListener('change',cameraRotation);
   this.frameTick();setInterval(()=>this.correctDrift(),100);
   ['cameraFacing','prepareSeconds','recordAudio'].forEach(id=>{try{const v=localStorage.getItem('slowmo-'+id);if(v!==null){if([...$(id).options].some(o=>o.value===v))$(id).value=v;}}catch{}$(id).addEventListener('change',()=>{try{localStorage.setItem('slowmo-'+id,$(id).value);}catch{}});});
@@ -247,12 +247,21 @@ class DancePractice{
   return new Promise(resolve=>{this.prepResolve=resolve;const tick=()=>{if(token!==this.prepToken){resolve(false);return;}const n=Math.ceil((deadline-performance.now())/1000);if(n<=0){$('takePrep').hidden=true;this.prepTimer=null;this.prepResolve=null;resolve(true);return;}$('takePrepNumber').textContent=n;this.prepTimer=setTimeout(tick,80);};tick();});
  }
  cancelPreparation(){if(!this.preparing)return;this.session.cancelled=true;this.session.abort.abort();if(this.isRecording)this.stopRecording('Recording preparation cancelled.');++this.sessionEpoch;++this.prepToken;clearTimeout(this.prepTimer);this.prepResolve?.(false);this.prepResolve=null;this.preparing=false;$('takePrep').hidden=true;this.releaseCamera();this.updateControls();renderLoop();}
- updateCameraAspect(direction){const source=$('cameraSource');const ratio=source.videoWidth>0&&source.videoHeight>0?source.videoWidth/source.videoHeight:direction==='portrait'?.5625:16/9;source.style.setProperty('--camera-ratio',String(ratio));}
- cameraResized(){if(!this.stream)return;const v=$('cameraSource'),frame=this.session?.cameraFrame;if(this.isRecording&&frame&&(v.videoWidth!==frame.width||v.videoHeight!==frame.height)){this.stopRecording('Camera orientation changed. This take ended to keep its picture consistent; rotate before starting your next take.');return;}if(!this.locked)this.updateCameraAspect(SlowMoCamera.orientation(window));}
- mountCameraSource(framing){$(framing?'cameraPreviewHost':this.stream&&this.recordingView?'recordMonitor':'cameraSourceHome').append($('cameraSource'));}
+ updateCameraAspect(direction=SlowMoCamera.orientation(window)){
+  const source=$('cameraSource'),host=source.parentElement;if(!this.stream||!['cameraPreviewHost','recordMonitor'].includes(host?.id))return;
+  const pane=host.getBoundingClientRect();const box=SlowMoCamera.previewBox(pane.width,pane.height,source.videoWidth,source.videoHeight,SlowMoCamera.needsOrientedPreview(navigator)?direction:null);if(!box)return;
+  Object.assign(source.style,{width:box.width+'px',height:box.height+'px',left:box.left+'px',top:box.top+'px',right:'auto',bottom:'auto',margin:'0px',objectFit:'fill'});source.dataset.previewFit='explicit';
+ }
+ cameraResized(){if(!this.stream)return;const v=$('cameraSource'),frame=this.session?.cameraFrame;if(this.isRecording&&frame&&v.videoWidth>0&&v.videoHeight>0&&(v.videoWidth!==frame.width||v.videoHeight!==frame.height)){this.stopRecording('Camera orientation changed. This take ended to keep its picture consistent; rotate before starting your next take.');return;}this.updateCameraAspect(SlowMoCamera.orientation(window));}
+ mountCameraSource(framing){
+  const host=$(framing?'cameraPreviewHost':this.stream&&this.recordingView?'recordMonitor':'cameraSourceHome');host.append($('cameraSource'));
+  this.cameraPreviewObserver?.disconnect();this.cameraPreviewObserver=null;
+  if(host.id!=='cameraSourceHome'&&window.ResizeObserver){this.cameraPreviewObserver=new window.ResizeObserver(()=>this.updateCameraAspect(SlowMoCamera.orientation(window)));this.cameraPreviewObserver.observe(host);}
+  this.updateCameraAspect(SlowMoCamera.orientation(window));
+ }
  async enableCamera(){
   if(this.locked)return false;
-  this.releaseCamera();const request=this.cameraRequest,abort=this.cameraSetupAbort=new AbortController(),signal=abort.signal;
+  this.releaseCamera();const fresh=SlowMoCamera.freshPreview($('cameraSource'));fresh.onresize=()=>this.cameraResized();fresh.dataset.previewGeneration=String(this.cameraPreviewSerial=(this.cameraPreviewSerial||0)+1);const request=this.cameraRequest,abort=this.cameraSetupAbort=new AbortController(),signal=abort.signal;
   let stage='camera permission';
   const current=()=>request===this.cameraRequest&&!signal.aborted;
   const check=()=>{if(!current())throw SlowMoMedia.abortError();};
@@ -275,10 +284,10 @@ class DancePractice{
    $('startTake').disabled=false;$('startTake').focus({preventScroll:true});$('cameraStatus').textContent=(direction==='portrait'?'Portrait':'Landscape')+' camera ready. Position yourself, then Start take.';
    for(const track of stream.getTracks())track.addEventListener('ended',()=>{if(this.stream!==stream)return;if(this.preparing){this.cancelPreparation();this.leaveMemory();}else if(this.isRecording)this.stopRecording('The camera or microphone was interrupted. You can review the partial take.');else this.releaseCamera();$('cameraStatus').textContent='Camera or microphone stopped. Enable camera again to record.';});
    return true;
-  }catch(e){if(!current())return false;this.releaseCamera();$('cameraStatus').textContent=e.name==='NotAllowedError'?'Camera or microphone permission was denied. Allow camera access, or choose Reference music instead of Microphone and try again. Practice only is always available.':e.name==='NotFoundError'?'No camera was found. Choose another camera or use Practice only.':'Camera setup stopped at '+stage+' (v22): '+e.message+' Tap Enable camera to retry. If it persists, close other camera apps and reopen SlowMo.';return false;
+  }catch(e){if(!current())return false;this.releaseCamera();$('cameraStatus').textContent=e.name==='NotAllowedError'?'Camera or microphone permission was denied. Allow camera access, or choose Reference music instead of Microphone and try again. Practice only is always available.':e.name==='NotFoundError'?'No camera was found. Choose another camera or use Practice only.':'Camera setup stopped at '+stage+' (v24): '+e.message+' Tap Enable camera to retry. If it persists, close other camera apps and reopen SlowMo.';return false;
   }finally{if(this.cameraSetupAbort===abort){this.cameraSetupAbort=null;$('enableCamera').disabled=false;}}
  }
- releaseCamera(invalidate=true){this.cameraSetupAbort?.abort();this.cameraSetupAbort=null;$('enableCamera').disabled=false;clearTimeout(this.cameraOrientationTimer);if(this.stream){const stream=this.stream;this.stream=null;stream.getTracks().forEach(t=>t.stop());}this.cameraFrames?.stop();this.cameraFrames?.canvas?.remove();this.cameraFrames=null;$('cameraSource').srcObject=null;this.mountCameraSource(false);this.audioCapture?.release();this.audioCapture=null;this.recordingStream=null;if(invalidate)++this.cameraRequest;$('cameraPreview').srcObject=null;$('recordMonitor').srcObject=null;this.setCameraVisible(false);$('startTake').disabled=true;}
+ releaseCamera(invalidate=true){this.cameraPreviewObserver?.disconnect();this.cameraPreviewObserver=null;this.cameraSetupAbort?.abort();this.cameraSetupAbort=null;$('enableCamera').disabled=false;clearTimeout(this.cameraOrientationTimer);if(this.stream){const stream=this.stream;this.stream=null;stream.getTracks().forEach(t=>t.stop());}this.cameraFrames?.stop();this.cameraFrames?.canvas?.remove();this.cameraFrames=null;$('cameraSource').srcObject=null;this.mountCameraSource(false);this.audioCapture?.release();this.audioCapture=null;this.recordingStream=null;if(invalidate)++this.cameraRequest;$('cameraPreview').srcObject=null;$('recordMonitor').srcObject=null;this.setCameraVisible(false);$('startTake').disabled=true;}
  async beginRecording(){
   const session=this.session,epoch=this.sessionEpoch,signal=session.abort.signal;const check=()=>{if(signal.aborted||epoch!==this.sessionEpoch||document.hidden)throw SlowMoMedia.abortError();};check();
   if(!this.stream)throw new Error('The camera stopped. Open Practice & Record to enable it again.');
@@ -385,7 +394,7 @@ class DancePractice{
   $('liveMirrorReference').hidden=!visible;$('liveMirrorReference').setAttribute('aria-pressed',String(video.classList.contains('mirrored')));$('liveMirrorCamera').hidden=!this.recordingView;
   if(visible){$('memoryCover').hidden=true;this.setCameraVisible(true);}else if(this.recordingView){$('memoryCover').hidden=false;this.setCameraVisible(!$('recordMonitor').hidden);}
  }
- setCameraVisible(visible){if(this.recordingView&&this.recordReference==='split'&&this.stream)visible=true;$('recordMonitor').hidden=!visible;$('showCamera').textContent=visible?'Hide camera':'Show camera';$('showCamera').hidden=!!this.recordingView&&this.recordReference==='split';player.classList.toggle('camera-view',visible);}
+ setCameraVisible(visible){if(this.recordingView&&this.recordReference==='split'&&this.stream)visible=true;$('recordMonitor').hidden=!visible;$('showCamera').textContent=visible?'Hide camera':'Show camera';$('showCamera').hidden=!!this.recordingView&&this.recordReference==='split';player.classList.toggle('camera-view',visible);this.updateCameraAspect?.();}
  canReviewTake(take){return !!take?.blob.size&&!!take?.canCompare&&video.readyState>=1&&!!this.referenceKey&&take.referenceKey===this.referenceKey;}
  async restoreTakes(){
   const revision=this.takeRevision;

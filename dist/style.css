@@ -107,6 +107,7 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 #cameraSourceHome{position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;pointer-events:none}
 #cameraSourceHome #cameraSource{opacity:1}
 
-/* The native camera occupies its whole pane. object-fit:contain performs the
-   single aspect-ratio fit, exactly as it does for the reference video. Avoid
-   another sized rectangle or container-query units inside the camera pane. */
+/* Explicit aspect-fit dimensions + native fill avoid WebKit applying contain
+   against the camera's pre-rotation sensor size. No canvas preview is used. */
+#cameraPreviewHost #cameraSource[data-preview-fit="explicit"],#recordMonitor #cameraSource[data-preview-fit="explicit"]{object-fit:fill}
+#recordMonitor{overflow:hidden}

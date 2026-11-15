@@ -34,6 +34,22 @@ function nativeFrame(video){
  // immediately after getUserMedia. WebKit can swap them on its first frame.
  return {path:'native',orientation:video.videoHeight>video.videoWidth?'portrait':'landscape',width:video.videoWidth,height:video.videoHeight};
 }
+// Fit the element itself, then use object-fit:fill. Some WebKit camera layers
+// apply contain before their orientation transform and paint a shrunken image
+// inside an otherwise correctly sized DOM box. This avoids that second fit.
+function previewBox(paneWidth,paneHeight,frameWidth,frameHeight,direction=null){
+ if(![paneWidth,paneHeight,frameWidth,frameHeight].every(n=>Number.isFinite(n)&&n>0))return null;
+ let width=frameWidth,height=frameHeight;
+ if(direction==='portrait'){width=Math.min(frameWidth,frameHeight);height=Math.max(frameWidth,frameHeight);}
+ else if(direction==='landscape'){width=Math.max(frameWidth,frameHeight);height=Math.min(frameWidth,frameHeight);}
+ const scale=Math.min(paneWidth/width,paneHeight/height);width*=scale;height*=scale;
+ return {width,height,left:(paneWidth-width)/2,top:(paneHeight-height)/2};
+}
+function needsOrientedPreview(navigator){return /iPad|iPhone|iPod/.test(navigator?.userAgent||'')||(navigator?.platform==='MacIntel'&&navigator?.maxTouchPoints>1);}
+function freshPreview(previous){
+ const source=previous.cloneNode(false);source.removeAttribute('src');source.removeAttribute('style');source.removeAttribute('data-preview-fit');source.srcObject=null;source.autoplay=true;source.muted=true;source.playsInline=true;
+ previous.pause();previous.srcObject=null;previous.replaceWith(source);return source;
+}
 class CameraFrames{
  constructor(source,direction){
   this.source=source;this.win=source.ownerDocument.defaultView;this.canvas=source.ownerDocument.createElement('canvas');this.context=this.canvas.getContext('2d',{alpha:false});
@@ -80,5 +96,5 @@ class CameraFrames{
  }
  stop(){this.stopped=true;clearTimeout(this.timer);for(const waiter of this.waiters){clearTimeout(waiter.timer);waiter.reject(new Error('The camera stopped before recording was ready.'));}this.waiters.clear();this.win.cancelAnimationFrame(this.frame);if(this.videoFrame)this.source.cancelVideoFrameCallback?.(this.videoFrame);this.stream?.getTracks().forEach(t=>t.stop());}
 }
-return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,CameraFrames};
+return {orientation,size,sensorConstraints,crop,pictureReady,nativeFrame,previewBox,needsOrientedPreview,freshPreview,CameraFrames};
 });
