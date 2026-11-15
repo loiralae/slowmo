@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v27 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v28 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 192 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 208 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -102,3 +102,9 @@ Physical iPad test: reopen v26, start in portrait, rotate to landscape and back 
 Landscape guided recording prioritizes the reference video: its pane gets enough width to show the full available height, while the camera preview fits in the remaining space. Both keep their original aspect ratios. The existing 20% minimum pane width prevents either view becoming unusable for extreme video shapes; portrait remains equal left/right. For a 9:16 reference in a 1126×756 viewport, the reference is 425.25×756 instead of being reduced to match a wide camera image's height.
 
 This is a display-layout adjustment. v26 continuous rotation, original-track recording, soundtrack, sync and v25 aspect-preserving selfie preview are unchanged. 192 automated tests pass, and a synthetic guided browser take verified the full-height reference and undistorted camera. Real iPad safe-area behavior requires device verification after reopening the updated app.
+
+## v28: unobstructed playback
+
+In the immersive/full-screen player, controls hide after 3 seconds of active playback. Tap the picture once to pause or resume; the paused player also offers a large central Play button. Double-tap left/right retains configurable skipping. Show controls reveals speed and loop settings without pausing. Paused media, slider drags, keyboard control interaction, open dialogs and recording preparation/takes keep their dedicated controls visible.
+
+208 automated tests cover the current regression suite, including control timer/gesture races. The local browser control audit additionally checks real decoded playback at custom speeds with an A/B loop. Physical iPad Safari/Home Screen touch dispatch and fullscreen behavior still require device verification.
