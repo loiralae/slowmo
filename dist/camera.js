@@ -41,12 +41,13 @@ function previewSize(width,height,maxEdge=960){
  const scale=Math.min(1,maxEdge/Math.max(width,height));
  return {width:Math.max(1,Math.round(width*scale)),height:Math.max(1,Math.round(height*scale))};
 }
-// Landscape panes share the largest common picture height. Portrait keeps
-// the familiar equal left/right split. This changes pane geometry, not pixels.
+// Give the reference enough landscape width to fit the full viewer height,
+// then give the camera the remainder. Keep both panes usable, and keep the
+// familiar equal left/right split in portrait. This changes geometry, not pixels.
 function referenceShare(width,height,referenceWidth,referenceHeight,cameraWidth,cameraHeight){
  if(![width,height,referenceWidth,referenceHeight,cameraWidth,cameraHeight].every(n=>Number.isFinite(n)&&n>0)||width<=height)return .5;
- const a=referenceWidth/referenceHeight,b=cameraWidth/cameraHeight;
- return Math.max(.2,Math.min(.8,a/(a+b)));
+ const referenceAspect=referenceWidth/referenceHeight;
+ return Math.max(.2,Math.min(.8,height*referenceAspect/width));
 }
 class CameraDisplay{
  constructor(source){
