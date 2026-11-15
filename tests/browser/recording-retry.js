@@ -3,12 +3,17 @@ const qaSleep=ms=>new Promise(r=>setTimeout(r,ms)),qaReport=text=>parent.documen
 async function qaUntil(fn,ms=12000){const end=performance.now()+ms;while(!fn()){if(performance.now()>end)throw Error('Timeout: '+fn.toString());await qaSleep(25);}}
 const qaCheck=(v,text)=>{if(!v)throw Error(text);qaReport('PASS '+text);};
 function qaCameraFills(host,label){
- const camera=$('cameraSource'),picture=camera.getBoundingClientRect(),pane=$(host).getBoundingClientRect();
- const expectedScale=Math.min(pane.width/camera.videoWidth,pane.height/camera.videoHeight),width=camera.videoWidth*expectedScale,height=camera.videoHeight*expectedScale;
- qaCheck(Math.abs(picture.width-width)<1&&Math.abs(picture.height-height)<1,label+': camera has largest complete aspect-fit picture');
- qaCheck(Math.abs(picture.x-pane.x-(pane.width-width)/2)<1&&Math.abs(picture.y-pane.y-(pane.height-height)/2)<1,label+': camera is centered without an extra inset');
- qaCheck(getComputedStyle(camera).objectFit==='fill',label+': native surface has explicit fitting without a second contain pass');
+ const camera=$('cameraSource'),display=dance.cameraDisplay?.canvas,pane=$(host).getBoundingClientRect();
+ qaCheck(display&&!display.hidden&&display.parentElement===$(host),label+': decoded-pixel preview is visible in active pane');
+ const box=display.getBoundingClientRect();qaCheck(Math.abs(box.width-pane.width)<1&&Math.abs(box.height-pane.height)<1,label+': preview fills its pane');
+ qaCheck(Math.abs(display.width/display.height-camera.videoWidth/camera.videoHeight)<.003,label+': frame proportions match native pixels without screen-axis guessing');
+ qaCheck(getComputedStyle(display).objectFit==='contain',label+': complete image is fitted without stretching');
+ qaCheck(getComputedStyle(display).transform.startsWith('matrix(-1,')&&getComputedStyle($(host)).transform==='none',label+': displayed selfie is mirrored exactly once');
+ const pixels=display.getContext('2d').getImageData(0,0,display.width,display.height).data;let x0=Infinity,x1=-1,y0=Infinity,y1=-1;
+ for(let y=0;y<display.height;y++)for(let x=0;x<display.width;x++){const i=(y*display.width+x)*4;if(pixels[i]>220&&pixels[i+1]<25&&pixels[i+2]<25){x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);}}
+ qaCheck(x1>x0&&Math.abs((x1-x0)/(y1-y0)-1)<.025,label+': round camera test target remains round');
 }
+
 async function qaCameraLayout(){
  const frame=parent.document.getElementById('app');let checks=0;
  for(const [width,height] of [[756,1126],[1126,756]]){
@@ -48,7 +53,7 @@ window.runRecordingAudit=async()=>{try{
  // Match Start take: prime the soundtrack from this explicit user gesture.
  await dance.referenceAudio.prime();
  const source=await fetch('/__tone.mp4').then(r=>r.blob()),dt=new DataTransfer();dt.items.add(new File([source],'retry-audit.mp4',{type:'video/mp4',lastModified:1}));file.files=dt.files;file.dispatchEvent(new Event('change'));await qaUntil(()=>video.readyState>=3);pausePlayback();
- const landscape=new URLSearchParams(parent.location.search).has('landscape');const rawCanvas=document.createElement('canvas');rawCanvas.width=landscape?1280:720;rawCanvas.height=landscape?720:1280;const ctx=rawCanvas.getContext('2d');let frame=0;const paint=()=>{ctx.fillStyle=frame%2?'#8762c0':'#9672d0';ctx.fillRect(0,0,rawCanvas.width,rawCanvas.height);for(let bit=0;bit<8;bit++){ctx.fillStyle=frame&(1<<bit)?'#fff':'#000';ctx.fillRect(20+40*bit,100,40,40);}ctx.fillStyle='#fff';ctx.font='60px sans-serif';ctx.fillText('CAMERA '+frame++,60,rawCanvas.height/2);};paint();
+ const landscape=new URLSearchParams(parent.location.search).has('landscape');const rawCanvas=document.createElement('canvas');rawCanvas.width=landscape?1280:720;rawCanvas.height=landscape?720:1280;const ctx=rawCanvas.getContext('2d');let frame=0;const paint=()=>{ctx.fillStyle=frame%2?'#8762c0':'#9672d0';ctx.fillRect(0,0,rawCanvas.width,rawCanvas.height);for(let bit=0;bit<8;bit++){ctx.fillStyle=frame&(1<<bit)?'#fff':'#000';ctx.fillRect(20+40*bit,100,40,40);}ctx.fillStyle='#ff0000';ctx.beginPath();ctx.arc(rawCanvas.width/2,rawCanvas.height/2,Math.min(rawCanvas.width,rawCanvas.height)/4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='60px sans-serif';ctx.fillText('CAMERA '+frame++,60,rawCanvas.height/2);};paint();
  // Camera capture must no longer depend on the old canvas-copy pipeline.
  SlowMoCamera.CameraFrames=class{constructor(){throw Error('Native recording must never create a canvas camera pipeline');}};
  if(new URLSearchParams(parent.location.search).has('faults'))qaReport('Legacy canvas pipeline disabled: native capture must remain unaffected');
@@ -65,7 +70,7 @@ window.runRecordingAudit=async()=>{try{
  qaCheck(sensor.closest('#practiceDialog')&&!sensor.closest('[inert]'),'Camera source is inside active framing, outside inert viewer');
  qaCheck(getComputedStyle(sensor).opacity==='1'&&sensorBox.width>100&&sensorBox.height>100,'Camera source has a visible full-size framing surface');
  qaCameraFills('cameraPreviewHost','Native framing');
- qaCheck(!dance.cameraFrames&&$('cameraPreview').paused,'Framing uses native camera without a canvas overlay or second decoder');
+ qaCheck(!dance.cameraFrames&&dance.cameraDisplay&&$('cameraPreview').paused,'Framing uses a display-only canvas and no second decoder or capture stream');
  qaCheck(getComputedStyle(sensor).transform.startsWith('matrix(-1,'),'Front camera starts mirrored despite a legacy saved off preference');
  qaCheck(getComputedStyle($('cameraPreviewHost')).transform==='none','Framing parent does not mirror a second time');
  if(new URLSearchParams(parent.location.search).has('layout')){await qaCameraLayout();return;}
