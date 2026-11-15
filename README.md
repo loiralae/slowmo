@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v23 (November 12, 2026). Full-size native camera panes and recording behavior are covered by automated and synthetic-browser checks; physical iPad verification remains required.
+Source synchronized with deployed SlowMo v24 (November 14, 2026). Native preview fitting and fresh camera surfaces address a WebKit portrait-camera shrinkage symptom; smooth native recording and default front-camera mirroring are preserved. Automated and synthetic-browser checks pass; physical iPad verification remains required.
 
 ## What it does
 
@@ -80,3 +80,11 @@ The existing live app is hosted separately. Publishing this repository does **no
 ## License
 
 [MIT](LICENSE). This covers the application code and included app icons. No user recordings or reference videos are included or licensed by this repository.
+
+## v24 camera preview follow-up
+
+Each camera setup/Retry creates a fresh native video display, avoiding reuse of an old WebKit camera layer. The display rectangle is explicitly fitted and centered from the camera aspect ratio and pane size, with orientation normalization on Apple touch devices. Native object-fit:fill is applied only after computing that aspect-preserving rectangle, avoiding a second contain calculation inside the camera layer. ResizeObserver updates the display after pane/visibility changes; it is disconnected on release. There is no canvas preview, per-frame copying, or change to the original camera-track recording path.
+
+This is informed by [WebKit bug 259364](https://bugs.webkit.org/show_bug.cgi?id=259364), including the iOS 27 report of a reused portrait camera layer displaying at roughly 56% size. It is a matching symptom, not a confirmed diagnosis on the user's device.
+
+Validation: 182 Node tests, 30 browser layout combinations, and portrait/landscape synthetic-camera recording/retry audits. Downloaded native output is independently decoded to inspect motion, rather than treating nominal frame rate as proof of smoothness. Recheck on an actual iPad after fully closing/reopening the app: portrait reference shown, Hidden, Retry, then start a separate landscape take. Both panes should maximize their complete images without distortion. Good to know → Copy layout report now identifies build v24 and includes camera/pane dimensions if native rendering still differs.
