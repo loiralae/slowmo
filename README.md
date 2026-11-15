@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v25 (November 14, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v26 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 186 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 191 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -88,3 +88,11 @@ The v24 orientation-normalized native display stretched the image on a real iPad
 The canvas is never captured, encoded or supplied to MediaRecorder. Saved video continues to use the original getUserMedia track with existing soundtrack and synchronization logic. Fresh native elements remain in use for each camera setup/Retry. A failed canvas draw exposes the native display fallback.
 
 Tests include portrait, landscape and 4:3 frame proportions, a round pixel target to detect stretch, display cleanup, mirroring, capture-track identity, recording/retry and layout changes. Desktop synthetic-camera tests cannot establish physical iPad performance or native frame metadata. Close/reopen the updated app, test portrait Side by Side, Hidden, Retry and a separate landscape take; check the saved file remains smooth. Good to know → Copy layout report identifies v25 and includes preview pixel dimensions and draw count if a problem remains.
+
+## v26: continuous rotation and adaptive recording panes
+
+Rotating no longer deliberately stops a take. Native camera resize events redraw the preview and update layout without replacing the camera track, encoder, audio capture or session clock. Startup readiness accepts stable fresh frames at the current dimensions instead of waiting for the original dimensions to return. Hardware/encoder errors, actual media interruptions and normal take limits still stop recording.
+
+Portrait guided recording keeps equal left/right panes. Landscape distributes width according to the reference and camera aspect ratios (with a 20% minimum per pane), maximizing their common fitted image height without cropping. A portrait reference with a wide camera gets approximately 24%/76% rather than 50%/50%; equal-aspect videos remain equal width. This changes layout only, not camera pixels or saved footage. The v25 aspect-preserving preview and direct native recording path remain.
+
+Physical iPad test: reopen v26, start in portrait, rotate to landscape and back while recording, then Stop. Confirm the timer/music never restart, preview stays correctly proportioned and mirrored, and the saved take plays continuously across both rotations in SlowMo and Photos/Files. Native Safari MP4 orientation metadata and Home Screen behavior require this device test; desktop simulations cannot establish them.
