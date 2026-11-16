@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v28 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v29 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 208 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 214 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -108,3 +108,7 @@ This is a display-layout adjustment. v26 continuous rotation, original-track rec
 In the immersive/full-screen player, controls hide after 3 seconds of active playback. Tap the picture once to pause or resume; the paused player also offers a large central Play button. Double-tap left/right retains configurable skipping. Show controls reveals speed and loop settings without pausing. Paused media, slider drags, keyboard control interaction, open dialogs and recording preparation/takes keep their dedicated controls visible.
 
 208 automated tests cover the current regression suite, including control timer/gesture races. The local browser control audit additionally checks real decoded playback at custom speeds with an A/B loop. Physical iPad Safari/Home Screen touch dispatch and fullscreen behavior still require device verification.
+
+## v29: prioritize video startup
+
+Video selection performs one media load and initiates Play before the fullscreen request. Saved-section fingerprint reads and database lookups start only when Sections is opened; the same fingerprint format preserves existing bookmarks. Normal playback without a Web Audio source skips the unnecessary audio-resume wait. Previously routed reference sound still resumes before playback. 214 regression tests pass, and the local browser audit checks playback starts with zero bookmark reads, then matches sections on demand. Photos/iCloud preparation and actual iPad codec/I/O latency require device testing; no device speedup is claimed from synthetic desktop timing.
