@@ -367,7 +367,7 @@ class DancePractice{
   catch(e){if(e.name!=='AbortError')$('takeStatus').textContent='The Share Sheet is unavailable. Tap Download instead, then open the file in Files and Share → Save Video if supported.';}
  }
 
- resumeAudio(){return this.referenceAudio.resume();}
+ resumeAudio(){return this.referenceAudio.source?this.referenceAudio.resume():undefined;}
  audioNote(){const mode=$('recordAudio').value;$('recordAudioNote').textContent=mode==='reference'?'Records the reference soundtrack at your selected speed, without microphone access. One pass per take.':mode==='microphone'?'Records room sound. Use speakers to capture the music; headphones will not be recorded. One pass per take.':'Saved video will be silent. Reference music still plays during practice.';}
  applyComparisonLayout(value){
   if(!value){try{value=localStorage.getItem('slowmo-comparison-layout');}catch{}}
