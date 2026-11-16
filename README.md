@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v29 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v30 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 214 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 227 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -112,3 +112,9 @@ In the immersive/full-screen player, controls hide after 3 seconds of active pla
 ## v29: prioritize video startup
 
 Video selection performs one media load and initiates Play before the fullscreen request. Saved-section fingerprint reads and database lookups start only when Sections is opened; the same fingerprint format preserves existing bookmarks. Normal playback without a Web Audio source skips the unnecessary audio-resume wait. Previously routed reference sound still resumes before playback. 214 regression tests pass, and the local browser audit checks playback starts with zero bookmark reads, then matches sections on demand. Photos/iCloud preparation and actual iPad codec/I/O latency require device testing; no device speedup is claimed from synthetic desktop timing.
+
+## v30: always-immersive playback and repeat delays
+
+SlowMo opens directly into the existing full-window player, with the Photos picker centered before selection. It stays immersive when native fullscreen exits; browser toolbar removal can still require a gesture. Loop delay now applies to normal whole-video repeats as well as A/B sections, with 3/5 seconds measured in wall-clock time at any speed. Off preserves immediate repeat. Pause/source changes cancel countdowns. Unchanged playback rates are not repeatedly assigned, including companion drift checks.
+
+227 tests pass. The new local audio audit measures continuous reference tone at 0.65× and whole-video/A-B delays at 3/5 seconds. Desktop testing cannot establish that intermittent physical-iPad audio stutter is eliminated. Real music, post-recording playback, camera recording, Safari/Home Screen behavior and Bluetooth routes need device verification. A/B seeks do not promise sample-accurate gapless sound.
