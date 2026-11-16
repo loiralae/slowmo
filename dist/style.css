@@ -119,3 +119,5 @@ html.viewport-measured .workspace.immersive:fullscreen,html.viewport-measured .w
 .center-play svg{width:44px;height:44px;fill:currentColor;pointer-events:none}
 .immersive.controls-hidden .panel,.immersive.controls-hidden .player-toolbar{transition:opacity .18s ease,visibility .18s ease}
 @media(prefers-reduced-motion:reduce){.immersive.controls-hidden .panel,.immersive.controls-hidden .player-toolbar{transition:none}}
+
+.immersive.awaiting-video #playerPanel,.immersive.awaiting-video #toggleControls,.immersive.awaiting-video #fitToggle,.immersive.awaiting-video #fsRetry,.immersive.awaiting-video #fsNotice{display:none}

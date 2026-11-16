@@ -10,7 +10,7 @@ let loopDelay=0, skipAmount=3, tapTimer=null, lastTap=null, feedbackTimer=null;
 try { const saved=localStorage.getItem('slowmo-speed'); if(saved!==null&&Number.isFinite(Number(saved))) preferred=Number(saved); } catch {}
 const clampRate=n=>Math.min(2,Math.max(.25,Math.round(n*20)/20));
 function paintRange(el){el.style.setProperty('--fill',`${100*(Number(el.value)-Number(el.min))/(Number(el.max)-Number(el.min))}%`);}
-function setSpeed(n){if(dance?.locked)return;preferred=clampRate(n);speed.value=preferred;$('speedValue').innerHTML=`${preferred.toFixed(2)}<span>×</span>`;speed.setAttribute('aria-valuetext',`${preferred.toFixed(2)} times`);video.defaultPlaybackRate=preferred;video.playbackRate=preferred;paintRange(speed);document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',Number(b.dataset.speed)===preferred?'true':'false'));$('minus').disabled=preferred<=.25;$('plus').disabled=preferred>=2;dance?.speedChanged();try{localStorage.setItem('slowmo-speed',String(preferred));}catch{document.querySelector('.remember').textContent='Speed saved for this session';}}
+function setSpeed(n){if(dance?.locked)return;preferred=clampRate(n);speed.value=preferred;$('speedValue').innerHTML=`${preferred.toFixed(2)}<span>×</span>`;speed.setAttribute('aria-valuetext',`${preferred.toFixed(2)} times`);if(video.defaultPlaybackRate!==preferred)video.defaultPlaybackRate=preferred;if(video.playbackRate!==preferred)video.playbackRate=preferred;paintRange(speed);document.querySelectorAll('[data-speed]').forEach(b=>b.setAttribute('aria-pressed',Number(b.dataset.speed)===preferred?'true':'false'));$('minus').disabled=preferred<=.25;$('plus').disabled=preferred>=2;dance?.speedChanged();try{localStorage.setItem('slowmo-speed',String(preferred));}catch{document.querySelector('.remember').textContent='Speed saved for this session';}}
 setSpeed(preferred);
 speed.addEventListener('input',()=>setSpeed(Number(speed.value)));
 $('minus').onclick=()=>setSpeed(preferred-.05);$('plus').onclick=()=>setSpeed(preferred+.05);
@@ -22,8 +22,8 @@ function playbackBounds(){return dance?.comparisonBounds()||{start:0,end:video.d
 function time(){const bounds=playbackBounds(),d=bounds.end;seek.min=Number.isFinite(bounds.start)?bounds.start:0;seek.max=Number.isFinite(d)&&d>0?d:100;seek.value=video.currentTime||0;$('elapsed').textContent=clock(video.currentTime);$('duration').textContent=clock(d);seek.setAttribute('aria-valuetext',`${clock(video.currentTime)} of ${clock(d)}`);paintRange(seek);}
 $('empty').addEventListener('click',e=>{if(!e.target.closest('label,button,a')&&!file.disabled)file.click();});
 $('empty').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===$('empty')){e.preventDefault();if(!file.disabled)file.click();}});
-file.addEventListener('change',()=>{const selected=file.files[0];if(!selected)return;if(dance&&!dance.beforeReferenceChange(selected)){file.value='';return;}generation++;pausePlayback();clearTap();clearLoop();video.removeAttribute('src');if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(selected);$('empty').hidden=true;$('empty').style.display='none';video.closest('.viewer').classList.add('loaded');$('filename').hidden=false;$('filename').textContent=selected.name;status.textContent='Opening video…';['play','back','forward','seek','setA','setB','enterFullscreen'].forEach(id=>$(id).disabled=true);video.preload='auto';video.src=url;video.playbackRate=preferred;video.defaultPlaybackRate=preferred;video.load();attemptPlay();enterPlayer(true);file.value='';});
-video.addEventListener('loadedmetadata',()=>{dance?.referenceReady();video.playbackRate=preferred;['play','back','forward','seek','setA','setB','enterFullscreen'].forEach(id=>$(id).disabled=false);time();});
+file.addEventListener('change',()=>{const selected=file.files[0];if(!selected)return;if(dance&&!dance.beforeReferenceChange(selected)){file.value='';return;}generation++;pausePlayback();clearTap();clearLoop();video.removeAttribute('src');if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(selected);player.classList.remove('awaiting-video');$('empty').hidden=true;$('empty').style.display='none';video.closest('.viewer').classList.add('loaded');$('filename').hidden=false;$('filename').textContent=selected.name;status.textContent='Opening video…';['play','back','forward','seek','setA','setB','enterFullscreen'].forEach(id=>$(id).disabled=true);video.preload='auto';video.src=url;video.playbackRate=preferred;video.defaultPlaybackRate=preferred;video.load();attemptPlay();enterPlayer(true);file.value='';});
+video.addEventListener('loadedmetadata',()=>{dance?.referenceReady();if(video.playbackRate!==preferred)video.playbackRate=preferred;['play','back','forward','seek','setA','setB','enterFullscreen'].forEach(id=>$(id).disabled=false);time();});
 video.addEventListener('error',()=>{if(!video.getAttribute('src'))return;pausePlayback();showControls();status.textContent='Safari cannot play this video format. Try an H.264 MP4 or a compatible MOV. Your video has not been uploaded.';['play','back','forward','seek','setA','setB','enterFullscreen'].forEach(id=>$(id).disabled=true);syncPlaybackControls();});
 video.addEventListener('playing',()=>status.textContent='');
 ['play','pause','ended'].forEach(e=>video.addEventListener(e,playing));
@@ -43,7 +43,7 @@ const startHandle=$('loopA'), endHandle=$('loopB');
 function precise(t){return clock(t)+'.'+String(Math.floor((t%1)*10));}
 function renderLoop(){
  // Native whole-video repeat yields to a custom A/B section. Pause still stops playback.
- video.loop=!loopOn&&!dance?.isComparing&&!dance?.locked;
+ video.loop=!loopOn&&!loopDelay&&!dance?.isComparing&&!dance?.locked;
  const valid=loopA!==null&&loopB!==null;
  $('loopHandles').hidden=loopA===null;endHandle.hidden=!valid;
  if(loopA!==null){startHandle.min=playbackBounds().start||0;startHandle.max=playbackBounds().end||100;startHandle.value=loopA;startHandle.setAttribute('aria-valuetext',precise(loopA));}
@@ -71,7 +71,7 @@ startHandle.addEventListener('input',()=>{interruptCountdown();loopA=Math.max(0,
 endHandle.addEventListener('input',()=>{interruptCountdown();loopB=Math.min(video.duration,Math.max(loopA+.1,Number(endHandle.value)));renderLoop();if(loopOn&&(video.currentTime<loopA||video.currentTime>=loopB))video.currentTime=loopA;});
 function enforceLoop(){if(dance?.handleBoundary())return;if(!loopOn||loopB===null||video.seeking||countdownActive||video.paused)return;if(video.currentTime>=loopB)repeatSection();else if(video.currentTime<loopA-.05)video.currentTime=loopA;}
 video.addEventListener('timeupdate',enforceLoop);
-video.addEventListener('ended',()=>{if(dance?.handleEnded())return;if(loopOn&&playbackIntent&&!countdownActive)repeatSection();});
+video.addEventListener('ended',()=>{if(dance?.handleEnded())return;if(playbackIntent&&!countdownActive)repeatSection();});
 function watchLoop(){enforceLoop();if(video.requestVideoFrameCallback)video.requestVideoFrameCallback(watchLoop);else requestAnimationFrame(watchLoop);}
 if(video.requestVideoFrameCallback)video.requestVideoFrameCallback(watchLoop);else requestAnimationFrame(watchLoop);
 
@@ -178,17 +178,14 @@ async function exitNativeFullscreen(){
  if(document.fullscreenElement&&document.exitFullscreen)await document.exitFullscreen();
  else if(document.webkitFullscreenElement&&document.webkitExitFullscreen)await document.webkitExitFullscreen();
 }
-async function closePlayer(){
- ++presentationEpoch;
- try{await exitNativeFullscreen();}catch{}
- setImmersive(false);$('enterFullscreen').focus({preventScroll:true});
-}
+function closePlayer(){setControls(false);}
+
 function onFullscreenChange(){
  const active=fullscreenElement()===player;
  if(active){hadFullscreen=true;setImmersive(true);fullscreenNotice();}
  else if(hadFullscreen){
   // Permission prompts, camera capture and sharing can make iPadOS leave native
-  // fullscreen. Preserve the app-sized player; only our Close action exits it.
+  // fullscreen. Preserve the app-sized player throughout.
   hadFullscreen=false;if(player.classList.contains('immersive')){setImmersive(true);fullscreenNotice();}
  }
 }
@@ -223,23 +220,25 @@ function cancelCountdown(){
 function pausePlayback(){++playbackSerial;playbackIntent=false;cancelCountdown();dance?.pauseCompanion();dance?.externalPause();video.pause();playing();}
 function interruptCountdown(){if(countdownActive)pausePlayback();}
 function repeatSection(){
- if(countdownActive||!loopOn||!playbackIntent)return;
- if(!loopDelay){video.currentTime=loopA;if(video.ended||video.paused)attemptPlay();return;}
- countdownActive=true;video.pause();if(video.currentTime>loopB)video.currentTime=loopB;playing();$('countdown').hidden=false;
+ if(countdownActive||!playbackIntent)return;
+ const start=loopOn?loopA:0,end=loopOn?loopB:video.duration,current=generation;
+ if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return;
+ if(!loopDelay){video.currentTime=start;if(video.ended||video.paused)attemptPlay();return;}
+ countdownActive=true;video.pause();if(video.currentTime>end)video.currentTime=end;playing();$('countdown').hidden=false;
  const serial=++countdownSerial,deadline=performance.now()+loopDelay*1000;
  function tick(){
   if(serial!==countdownSerial||!countdownActive)return;
-  if(!loopOn||!playbackIntent){cancelCountdown();return;}
+  if(current!==generation||!playbackIntent){cancelCountdown();return;}
   const remaining=Math.max(0,Math.ceil((deadline-performance.now())/1000));
-  if(!remaining){cancelCountdown();video.currentTime=loopA;attemptPlay();return;}
+  if(!remaining){cancelCountdown();video.currentTime=start;attemptPlay();return;}
   $('countdownNumber').textContent=String(remaining);countdownTimer=setTimeout(tick,80);
  }
  tick();
 }
 $('cancelCountdown').onclick=pausePlayback;
 $('loopDelay').onchange=()=>{
- const waiting=countdownActive;cancelCountdown();loopDelay=Number($('loopDelay').value);
- if(waiting&&playbackIntent){if(loopDelay)repeatSection();else {video.currentTime=loopA;attemptPlay();}}
+ const waiting=countdownActive;cancelCountdown();loopDelay=Number($('loopDelay').value);renderLoop();
+ if(waiting&&playbackIntent){if(loopDelay)repeatSection();else {video.currentTime=loopOn?loopA:0;attemptPlay();}}
 };
 video.addEventListener('play',()=>{playbackIntent=true;});
 video.addEventListener('pause',()=>{if(!countdownActive&&!video.ended&&!dance?.ownsPause)playbackIntent=false;});
@@ -311,7 +310,7 @@ function createLayoutReport(){
  const style=el=>{const s=getComputedStyle(el);return {position:s.position,height:s.height,width:s.width,overflow:s.overflow,transform:s.transform,objectFit:s.objectFit};};
  const vv=window.visualViewport,root=document.documentElement,s=getComputedStyle(root);
  const boxes={};for(const [name,el] of Object.entries({html:root,body:document.body,main:document.querySelector('main'),player,viewer:document.querySelector('.viewer'),video,camera:$('cameraSource'),cameraPane:$('recordMonitor'),cameraSetup:$('cameraPreviewHost')})){boxes[name]={rect:rect(el),style:style(el),clientHeight:el.clientHeight,scrollHeight:el.scrollHeight};}
- return JSON.stringify({version:'layout-report-1',build:'v29',camera:{videoWidth:$('cameraSource').videoWidth,videoHeight:$('cameraSource').videoHeight,fit:document.querySelector('.camera-display')?'canvas-contain':'native-contain',previewWidth:document.querySelector('.camera-display')?.width||null,previewHeight:document.querySelector('.camera-display')?.height||null,previewFrames:document.querySelector('.camera-display')?.dataset.frames||null,previewGeneration:$('cameraSource').dataset.previewGeneration||null},standalone:standalone(),navigatorStandalone:navigator.standalone??null,fullscreen:{active:!!fullscreenElement(),enabled:document.fullscreenEnabled??null,requestSupported:!!player.requestFullscreen,webkitRequestSupported:!!player.webkitRequestFullscreen,error:player.dataset.fullscreenError||null},screen:{width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,pixelRatio:devicePixelRatio},window:{width:innerWidth,height:innerHeight,scrollX,scrollY},visualViewport:vv?{width:vv.width,height:vv.height,offsetTop:vv.offsetTop,offsetLeft:vv.offsetLeft,pageTop:vv.pageTop,pageLeft:vv.pageLeft,scale:vv.scale}:null,safeArea:Object.fromEntries(['top','right','bottom','left'].map(k=>[k,s.getPropertyValue('--safe-'+k).trim()])),measuredHeight:root.style.getPropertyValue('--app-height'),videoDimensions:{width:video.videoWidth,height:video.videoHeight},boxes},null,2);
+ return JSON.stringify({version:'layout-report-1',build:'v30',camera:{videoWidth:$('cameraSource').videoWidth,videoHeight:$('cameraSource').videoHeight,fit:document.querySelector('.camera-display')?'canvas-contain':'native-contain',previewWidth:document.querySelector('.camera-display')?.width||null,previewHeight:document.querySelector('.camera-display')?.height||null,previewFrames:document.querySelector('.camera-display')?.dataset.frames||null,previewGeneration:$('cameraSource').dataset.previewGeneration||null},standalone:standalone(),navigatorStandalone:navigator.standalone??null,fullscreen:{active:!!fullscreenElement(),enabled:document.fullscreenEnabled??null,requestSupported:!!player.requestFullscreen,webkitRequestSupported:!!player.webkitRequestFullscreen,error:player.dataset.fullscreenError||null},screen:{width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,pixelRatio:devicePixelRatio},window:{width:innerWidth,height:innerHeight,scrollX,scrollY},visualViewport:vv?{width:vv.width,height:vv.height,offsetTop:vv.offsetTop,offsetLeft:vv.offsetLeft,pageTop:vv.pageTop,pageLeft:vv.pageLeft,scale:vv.scale}:null,safeArea:Object.fromEntries(['top','right','bottom','left'].map(k=>[k,s.getPropertyValue('--safe-'+k).trim()])),measuredHeight:root.style.getPropertyValue('--app-height'),videoDimensions:{width:video.videoWidth,height:video.videoHeight},boxes},null,2);
 }
 document.querySelectorAll('[data-layout-report]').forEach(button=>button.addEventListener('click',async()=>{
  const report=createLayoutReport();$('layoutReportText').value=report;
@@ -319,3 +318,6 @@ document.querySelectorAll('[data-layout-report]').forEach(button=>button.addEven
  catch{$('layoutReportDialog').showModal();$('layoutReportText').focus();$('layoutReportText').select();}
 }));
 $('closeLayoutReport').onclick=()=>$('layoutReportDialog').close();
+
+// Launch directly into the app-sized player; native browser fullscreen still needs a gesture.
+player.classList.add('awaiting-video');setImmersive(true);

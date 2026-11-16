@@ -91,7 +91,7 @@ class DancePractice{
   if(this.mode!=='compare')return;this.practiceLoadAbort?.abort();this.pauseCompanion();video.pause();this.mode='watch';this.aligned=false;this.mapping=null;++this.loadingId;practice.removeAttribute('src');practice.load();if(this.practiceURL){URL.revokeObjectURL(this.practiceURL);this.practiceURL=null;}player.classList.remove('comparing','overlay-comparison');$('practiceStage').hidden=true;$('compareTools').hidden=true;video.muted=false;practice.muted=true;this.updateControls();renderLoop();time();message('');
  }
  applyAudio(){const audio=$('compareAudio').value;video.muted=audio!=='reference';practice.muted=audio!=='practice';}
- setPracticeRate(rate){try{practice.playbackRate=rate;return Math.abs(practice.playbackRate-rate)<.02;}catch{return false;}}
+ setPracticeRate(rate){try{if(Math.abs(practice.playbackRate-rate)>1e-6)practice.playbackRate=rate;return Math.abs(practice.playbackRate-rate)<.02;}catch{return false;}}
  speedChanged(){if(this.isComparing&&!this.setPracticeRate(preferred*this.mapping.scale)){this.pauseCompanion();video.pause();message('This browser cannot play the take at that speed. Choose a lower comparison speed.');}}
  async seekReference(target,signal){this.internalReferenceTarget=target;try{await seekTo(video,target,signal);}finally{this.internalReferenceTarget=null;}}
  completePair(task,epoch,restart){
