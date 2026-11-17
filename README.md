@@ -4,7 +4,7 @@ A lightweight, client-side video player for dance practice. Built for iPad mini,
 
 **[Open SlowMo](https://slowmo-cindy.creamspool17.chatgpt.site/)** · **MIT licensed**
 
-Source synchronized with deployed SlowMo v31 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
+Source synchronized with deployed SlowMo v32 (November 15, 2026). The camera preview now copies the complete decoded frame into a bounded display-only canvas, preserving its actual proportions. The encoder still records the original camera track. Default front-camera selfie mirroring is preserved; physical iPad rendering/performance still requires verification.
 
 ## What it does
 
@@ -35,7 +35,7 @@ Requires Node.js 20 or later:
 npm test
 ```
 
-The current snapshot includes 231 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
+The current snapshot includes 233 passing automated tests. They cover timeline mapping, short takes, media cancellation, Retry/startup ordering, storage races, export failures, camera orientation and presentation logic. See [the browser test instructions](tests/browser/README.md) for a synthetic camera/recording fixture that exercises real browser media APIs.
 
 Automated tests and desktop browser tests do not establish physical iPad camera, encoder, audio, full-screen or Share Sheet behavior. Test media changes on a real device.
 
@@ -122,3 +122,7 @@ SlowMo opens directly into the existing full-window player, with the Photos pick
 ## v31: dismiss visible controls without pausing
 
 While playing, a single picture tap hides visible controls; if controls are already hidden, it pauses. A paused-picture tap resumes. Show controls, the central Play button, auto-hide and double-tap skipping remain. Dismissal intent is captured before the double-tap wait so auto-hide cannot accidentally turn a dismissal into Pause. 231 regression tests pass, with a local browser audit of dismissal during real playback. Verify touch behavior on the physical iPad.
+
+## v32: quiet Home Screen presentation
+
+Opening a video in Home Screen mode no longer overlays an automatic warning just because iPadOS reserves its status bar or lacks container fullscreen. This does not claim native fullscreen or hide system UI. When supported, the explicit native Full screen button remains; a rejected manual request still explains the limitation. Browser-tab guidance remains. 233 tests pass; no playback, picker or safe-area dimensions changed.
