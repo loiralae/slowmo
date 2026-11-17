@@ -1,10 +1,10 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const vm=require('node:vm');const {readFileSync}=require('node:fs');
 const source=readFileSync(new URL('../dist/app.js',`file://${__filename}`),'utf8');const fn=source.slice(source.indexOf('function fullscreenNotice('),source.indexOf('\nasync function enterPlayer('));
 function notice({active=false,available=true,failed=false,automatic=true}={}){const els={fsRetry:{},fsNotice:{}},player=available?{requestFullscreen(){}}:{};vm.runInNewContext(fn+'\nfullscreenNotice(failed,automatic);',{$:id=>els[id],player,fullscreenElement:()=>active?player:null,standalone:()=>true,failed,automatic});return els;}
-test('Home Screen view does not silently imply native fullscreen is active',()=>{const el=notice();assert.equal(el.fsNotice.hidden,false);assert.match(el.fsNotice.textContent,/Tap Full screen/);assert.equal(el.fsRetry.hidden,false);});
+test('Home Screen uses app-sized presentation without an automatic warning or implying native fullscreen',()=>{const el=notice();assert.equal(el.fsNotice.hidden,true);assert.equal(el.fsNotice.textContent,'');assert.equal(el.fsRetry.hidden,false);});
 test('active container fullscreen hides the request button and notice',()=>{const el=notice({active:true});assert.equal(el.fsNotice.hidden,true);assert.equal(el.fsRetry.hidden,true);});
-test('unsupported fullscreen explains the fallback and hides the unavailable action',()=>{const el=notice({available:false});assert.match(el.fsNotice.textContent,/unavailable/);assert.equal(el.fsRetry.hidden,true);});
-test('a rejected manual request explains the remaining status bar',()=>{const el=notice({failed:true,automatic:false});assert.match(el.fsNotice.textContent,/whole video fits below/);assert.equal(el.fsNotice.hidden,false);});
+test('unsupported Home Screen fullscreen hides the impossible action without overlaying an error',()=>{const el=notice({available:false});assert.equal(el.fsNotice.hidden,true);assert.equal(el.fsNotice.textContent,'');assert.equal(el.fsRetry.hidden,true);});
+test('a rejected manual request explains the remaining status bar',()=>{const el=notice({failed:true,automatic:false});assert.match(el.fsNotice.textContent,/SlowMo still fills the app window/);assert.equal(el.fsNotice.hidden,false);});
 
 const change=source.slice(source.indexOf('function onFullscreenChange(){'),source.indexOf("\n$('enterFullscreen').onclick"));
 function fullscreenChange({active=false,immersive=true,had=true}={}){const calls=[],player={classList:{contains:()=>immersive}};vm.runInNewContext('let hadFullscreen='+had+';\n'+change+'\nonFullscreenChange();',{player,fullscreenElement:()=>active?player:null,setImmersive:value=>calls.push(value),fullscreenNotice:()=>calls.push('notice')});return calls;}
@@ -19,3 +19,6 @@ test('reopening an existing player overlay does not duplicate its presentation',
 
 test('launch enters immersive player without requesting gesture-gated native fullscreen',()=>{const start=source.slice(source.indexOf('// Launch directly into the app-sized player;'));const calls=[];vm.runInNewContext(start,{player:{classList:{add:name=>calls.push(name)}},setImmersive:value=>calls.push(value)});assert.deepEqual(calls,['awaiting-video',true]);});
 test('Escape hides controls without exiting the app-sized or native player',()=>{const close=source.slice(source.indexOf('function closePlayer(){'),source.indexOf('\nfunction onFullscreenChange()'));let visible;vm.runInNewContext(close+';closePlayer();',{setControls:value=>visible=value});assert.equal(visible,false);assert.doesNotMatch(close,/exitNativeFullscreen|setImmersive\(false\)/);});
+
+test('an automatic fullscreen rejection in Home Screen does not show a warning',()=>{const el=notice({failed:true,automatic:true});assert.equal(el.fsNotice.hidden,true);assert.equal(el.fsRetry.hidden,false);});
+test('unsupported Home Screen mode never claims a manual native fullscreen request succeeded',()=>{const el=notice({available:false,failed:true,automatic:false});assert.equal(el.fsNotice.hidden,true);assert.equal(el.fsRetry.hidden,true);assert.equal(el.fsNotice.textContent,'');});
